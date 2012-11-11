@@ -17,9 +17,19 @@ module CF::UAA
 
 # This class is for apps that need to manage User Accounts.
 # It provides access to the SCIM endpoints on the UAA.
-class UserAccount
+class Scim
 
   include Http
+
+  CLIENT_MV_ATTRIBUTES = [:scope, :authorized_grant_types, :authorities, :redirect_uri]
+
+  def self.client_mva_to_arrays!(info)
+    CLIENT_MV_ATTRIBUTES.each_with_object(info) { |v, o| o[v] = Util.arglist(o[v]) if o[v] }
+  end
+
+  def self.client_mva_to_strings!(info)
+    CLIENT_MV_ATTRIBUTES.each_with_object(info) { |v, o| o[v] = Util.strlist(o[v]) if o[v] }
+  end
 
   private
 
@@ -31,16 +41,16 @@ class UserAccount
   end
 
   # info is a hash structure converted to json and sent to the scim /Users endpoint
-  def update_object(path, id, info)
+  def put_object(path, id, info)
     json_parse_reply(*json_put(@target, "#{path}/#{URI.encode(id)}", info,
         @auth_header, if_match: info[:meta][:version]))
   end
 
   # info is a hash structure converted to json and sent to the scim /Users endpoint
-  def patch_object(path, id, info, attributes_to_delete = nil)
-    info = info.merge(meta: { attributes: Util.arglist(attributes_to_delete) }) if attributes_to_delete
-    json_parse_reply(*json_patch(@target, "#{path}/#{URI.encode(id)}", info, @auth_header))
-  end
+  #def patch_object(path, id, info, attributes_to_delete = nil)
+  #  info = info.merge(meta: { attributes: Util.arglist(attributes_to_delete) }) if attributes_to_delete
+  #  json_parse_reply(*json_patch(@target, "#{path}/#{URI.encode(id)}", info, @auth_header))
+  #end
 
   # supported query keys are: attributes, filter, startIndex, count
   # output hash keys are: resources, totalResults, itemsPerPage
@@ -80,40 +90,25 @@ class UserAccount
   # provides an auth_header method for this purpose.
   def initialize(target, auth_header) @target, @auth_header = target, auth_header end
 
-  def create(name, password, email_addresses = nil, given_name = name, family_name = name, groups = nil)
-    logger.warn "#{self.class}##{__method__} is deprecated. Please use #{self.class}#add"
-    info = {userName: name, password: password, name: {givenName: given_name, familyName: family_name}}
-    info[:emails] = email_addresses.respond_to?(:each) ?
-        email_addresses.each_with_object([]) { |email, o| o.unshift({:value => email}) } :
-        [{:value => (email_addresses || name) }]
-    info[:groups] = groups if groups
-    add(info)
-  end
-
-  def query(attributes = nil, filter = nil)
-    logger.warn "#{self.class}##{__method__} is deprecated. Please use #{self.class}#query_users"
-    query = attributes ? {attributes: attributes}: {}
-    query[:filter] = filter if filter
-    query_objects("/Users", query)
-  end
-
-  def add(info) add_object("/Users", info) end
-  def update(user_id, info) update_object("/Users", user_id, info) end
-  def patch(user_id, info, attributes_to_delete = nil) patch_object("/Users", user_id, info, attributes_to_delete) end
+  def add_user(info) add_object("/Users", info) end
+  def put_user(user_id, info) put_object("/Users", user_id, info) end
+  #def patch_user(user_id, info, attributes_to_delete = nil) patch_object("/Users", user_id, info, attributes_to_delete) end
   def query_users(query) query_objects("/Users", query) end
-  def get(user_id) get_object("/Users", user_id) end
-  def get_by_name(name) get_object_by_name("/Users", "username", name) end
+  def get_user(user_id) get_object("/Users", user_id) end
+  def get_user_by_name(name) get_object_by_name("/Users", "username", name) end
   def user_id_from_name(name) get_by_name(name)[:id] end
-  def delete(user_id) http_delete @target, "/Users/#{URI.encode(user_id)}", @auth_header end
-  def delete_by_name(name) delete user_id_from_name(name) end
+  def delete_user(user_id) http_delete @target, "/Users/#{URI.encode(user_id)}", @auth_header end
+  def delete_user_by_name(name) delete user_id_from_name(name) end
   def add_group(info) add_object("/Groups", info) end
-  def update_group(id, info, attributes_to_delete = nil) update_object("/Groups", id, info) end
+  def put_group(id, info, attributes_to_delete = nil) put_object("/Groups", id, info) end
   def query_groups(query) query_objects("/Groups", query) end
   def get_group(id) json_get(@target, "/Groups/#{URI.encode(id)}", @auth_header) end
   def delete_group(id) http_delete @target, "/Groups/#{URI.encode(id)}", @auth_header end
   def get_group_by_name(name) get_object_by_name("/Groups", "displayname", name) end
   def group_id_from_name(name) get_group_by_name(name)[:id] end
   def query_ids(query) query_objects("/ids/Users", query) end
+  def ids_exclusive(*users) all_ids(:query_ids, users) end
+  def ids(*users) all_ids(:query_users, users) end
 
   def change_password(user_id, new_password, old_password = nil)
     password_request = { password: new_password }
@@ -140,8 +135,36 @@ class UserAccount
     end
   end
 
-  def ids_exclusive(*users) all_ids(:query_ids, users) end
-  def ids(*users) all_ids(:query_users, users) end
+  # takes a hash of fields currently supported by the uaa:
+  #     client_id (required),
+  #     client_secret,
+  #     scope (array of strings or space or comma separated fields),
+  #     authorized_grant_types (array of strings or space or comma separated fields),
+  #     authorities (array of strings or space or comma separated fields),
+  #     access_token_validity (integer)
+  #     refresh_token_validity (integer)
+  #     redirect_uri (array of strings or space or comma separated fields),
+  def add_client(info)
+    info = self.class.client_mva_to_arrays! Util.hash_keys(info)
+    json_parse_reply *json_post(@target, "/oauth/clients", info, @auth_header)
+  end
+
+  def put_client(info)
+    info = Util.hash_keys(info)
+    raise ArgumentError, "a client registration put must specify a unique client id" unless info[:client_id]
+    info = self.class.client_mva_to_arrays! info
+    json_parse_reply *json_put(@target, "/oauth/clients/#{URI.encode(info[:client_id])}", info, @auth_header)
+  end
+
+  def get_client(id) json_get @target, "/oauth/clients/#{URI.encode(id)}", @auth_header end
+  def delete_client(id) http_delete @target, "/oauth/clients/#{URI.encode(id)}", @auth_header end
+  def list_clients; json_get @target, "/oauth/clients", @auth_header end
+
+  def change_secret(client_id, new_secret, old_secret = nil)
+    req = { secret: new_secret }
+    req[:oldSecret] = old_secret if old_secret
+    json_parse_reply(*json_put(@target, "/oauth/clients/#{URI.encode(client_id)}/secret", req, @auth_header))
+  end
 
 end
 

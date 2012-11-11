@@ -13,7 +13,6 @@
 
 require 'spec_helper'
 require 'uaa/token_coder'
-require 'cli/base'
 
 module CF::UAA
 

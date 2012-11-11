@@ -17,7 +17,7 @@ require "uaa/util"
 
 module CF::UAA
 
-class DecodeError < RuntimeError; end
+class DecodeError < UAAError; end
 
 # This class is for OAuth Resource Servers.
 # Resource Servers get tokens and need to validate and decode them,

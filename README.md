@@ -1,5 +1,4 @@
-CloudFoundry UAA Gem
-====================
+# CloudFoundry UAA Gem
 
 Client gem for interacting with the CloudFoundry UAA server.
 
@@ -21,13 +20,6 @@ Build the gem
 Install it
 
   $ gem install cf-uaa-client*.gem
-
-Run it
-
-  $ uaac help
-  $ uaac target uaa.cloudfoundry.com
-  $ uaac token get <your-cf-username>
-  $ uaac token decode
 
 Use the gem:
 
@@ -55,3 +47,4 @@ Run integration tests (on a server running on localhost:8080/uaa):
   $ export UAA_CLIENT_SECRET="adminsecret"
   $ export UAA_CLIENT_TARGET="http://localhost:8080/uaa"
   $ bundle exec rspec spec/integration_spec.rb
+

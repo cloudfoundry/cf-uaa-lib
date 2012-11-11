@@ -25,7 +25,8 @@ end
 
 module CF::UAA
 
-class AuthError < RuntimeError; end
+class UAAError < RuntimeError; end
+class AuthError < UAAError; end
 
 class Util
 

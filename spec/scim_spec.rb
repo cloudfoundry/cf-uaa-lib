@@ -12,14 +12,53 @@
 #++
 
 require 'spec_helper'
-require 'uaa/user_account'
-require 'stub_uaa'
+require 'uaa/scim'
 
 module CF::UAA
 
-describe UserAccount do
+describe Scim do
 
   include SpecHelper
+
+  before :all do
+    #Util.default_logger(:trace)
+    @authheader, @target = "bEarer xyz", "https://test.target"
+    @scim = Scim.new(@target, @authheader)
+  end
+
+  subject { @scim }
+
+  it "should register a client" do
+    new_client = { client_id: "new_client", client_secret: "new_client_secret",
+      authorities: "password.write openid",
+      authorized_grant_types: "client_credentials authorization_code",
+      access_token_validity: 60 * 60 * 24 * 7 }
+    subject.set_request_handler do |req|
+      req[:url].should == "#{@target}/oauth/clients"
+      req[:method].should == :post
+      req[:headers]["content-type"].should =~ /application\/json/
+      req[:headers]["accept"].should =~ /application\/json/
+      req[:headers]["authorization"].should =~ /bearer xyz/i
+      [200, nil, nil]
+    end
+    subject.add_client(new_client).should be_nil
+  end
+
+  it "should get a client registration" do
+    subject.set_request_handler do |req|
+      req[:url].should == "#{@target}/oauth/clients/new_client"
+      req[:method].should == :get
+      req[:headers]["accept"].should =~ /application\/json/
+      # check request path, body, content_type and accept header
+      [200, '{"client_id":"new_client"}', {"content-type" => "application/json"}]
+    end
+    result = subject.get_client("new_client")
+    result[:client_id].should == "new_client"
+    #result[:authorities].should include "openid"
+    #result[:authorized_grant_types].should include "authorization_code"
+  end
+
+=begin
 
   before :all do
     #Util.default_logger(:trace)
@@ -68,8 +107,6 @@ describe UserAccount do
     result = filtr.match?({username: "joe", id: "11111"})
     result.should == true
   end
-
-=begin
 
   subject { UserAccount.new(StubServer.url, 'Bearer example_access_token') }
 
