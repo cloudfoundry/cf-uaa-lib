@@ -20,12 +20,22 @@ describe Misc do
 
   include SpecHelper
 
-#  it "should get the server info" do
-#    result = frequest { Misc.server(@stub_uaa.url) }
-#    result[:prompts].should_not be_nil
-#    result[:token_endpoint].should be_nil
-#    result[:commit_id].should_not be_nil
-#  end
+  before :all do
+    #Util.default_logger(:trace)
+  end
+
+  it "should get the server info" do
+    Misc.set_request_handler do |url, method, body, headers|
+      url.should == "https://uaa.cloudfoundry.com/login"
+      method.should == :get
+      headers["content-type"].should be_nil
+      headers["accept"].should =~ /application\/json/
+      [200, '{"commit_id":"12345","prompts":["one","two"]}', {"content-type" => "application/json"}]
+    end
+    result = Misc.server("https://uaa.cloudfoundry.com")
+    result["prompts"].should_not be_nil
+    result["commit_id"].should_not be_nil
+  end
 #
 #  it "should get token_endpoint" do
 #    @stub_uaa.info[:token_endpoint] = te = "http://alternate/token/end/point"

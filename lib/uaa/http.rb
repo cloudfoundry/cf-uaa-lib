@@ -117,11 +117,12 @@ module Http
   end
 
   def net_http_request(url, method, body, headers)
-    raise ArgumentError unless reqtype = {get: Net::HTTP::Get, delete: Net::HTTP::Delete, 
-        post: Net::HTTP::Post, put: Net::HTTP::Put, patch: Net::HTTP::Patch}[method]
-    headers["content-length"] = body ? body.length : 0
-    req = reqtype.new(uri.request_uri)
+    raise ArgumentError unless reqtype = {delete: Net::HTTP::Delete, 
+        get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put}[method]
+    headers["content-length"] = body.length if body
     uri = URI.parse(url)
+    req = reqtype.new(uri.request_uri)
+    headers.each { |k, v| req[k] = v }
     http_key = "#{uri.scheme}://#{uri.host}:#{uri.port}"
     @http_cache ||= {}
     unless http = @http_cache[http_key]
@@ -131,8 +132,9 @@ module Http
         http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       end
     end
-    reply = http.request(req, body)
-    [reply.code, reply.body, reply.to_hash]
+    reply, outhdrs = http.request(req, body), {}
+    reply.each_header { |k, v| outhdrs[k] = v }
+    [reply.code.to_i, reply.body, outhdrs]
 
   rescue URI::Error, SocketError, SystemCallError => e
     raise BadTarget, "error: #{e.message}"
