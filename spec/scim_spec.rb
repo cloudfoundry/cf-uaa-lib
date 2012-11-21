@@ -22,295 +22,95 @@ describe Scim do
 
   before :all do
     #Util.default_logger(:trace)
-    @authheader, @target = "bEarer xyz", "https://test.target"
+    @authheader, @target = "bEareR xyz", "https://test.target"
     @scim = Scim.new(@target, @authheader)
   end
 
   subject { @scim }
 
-  it "should register a client" do
-    new_client = { client_id: "new_client", client_secret: "new_client_secret",
-      authorities: "password.write openid",
-      authorized_grant_types: "client_credentials authorization_code",
-      access_token_validity: 60 * 60 * 24 * 7 }
-    subject.set_request_handler do |req|
-      req[:url].should == "#{@target}/oauth/clients"
-      req[:method].should == :post
-      req[:headers]["content-type"].should =~ /application\/json/
-      req[:headers]["accept"].should =~ /application\/json/
-      req[:headers]["authorization"].should =~ /bearer xyz/i
-      [200, nil, nil]
+  def check_headers(headers, content, accept)
+    headers["content-type"].should =~ /application\/json/ if content == :json
+    headers["content-type"].should be_nil unless content
+    headers["accept"].should =~ /application\/json/ if accept == :json
+    headers["accept"].should be_nil unless accept
+    headers["authorization"].should =~ /^(?i:bearer)\s+xyz$/
+  end
+
+  it "should add an object" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Users"
+      method.should == :post
+      check_headers(headers, :json, :json)
+      [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
-    subject.add_client(new_client).should be_nil
+    result = subject.add(:user, hair: "brown", shoe_size: "large", 
+        eye_color: ["blue", "green"], name: "fred")
+    result["id"].should == "id12345"
   end
 
-  it "should get a client registration" do
-    subject.set_request_handler do |req|
-      req[:url].should == "#{@target}/oauth/clients/new_client"
-      req[:method].should == :get
-      req[:headers]["accept"].should =~ /application\/json/
-      # check request path, body, content_type and accept header
-      [200, '{"client_id":"new_client"}', {"content-type" => "application/json"}]
+  it "should replace an object" do
+    obj = {hair: "black", shoe_size: "medium", eye_color: ["hazel", "brown"], 
+          name: "fredrick", meta: {version: 'v567'}}
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Users/id12345"
+      method.should == :put
+      check_headers(headers, :json, :json)
+      headers["if-match"].should == "v567"
+      [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
-    result = subject.get_client("new_client")
-    result[:client_id].should == "new_client"
-    #result[:authorities].should include "openid"
-    #result[:authorized_grant_types].should include "authorization_code"
+    result = subject.put(:user, "id12345", obj)
+    result["id"].should == "id12345"
   end
 
-=begin
-
-  before :all do
-    #Util.default_logger(:trace)
-    id, secret = "testclient", "testsecret"
-    @stub_uaa = StubUAA.new(id, secret).run_on_thread
-    @stub_uaa.scim.update(@stub_uaa.scim.id(id, :client), authorities:
-        [@stub_uaa.scim.id("scim.read", :group), @stub_uaa.scim.id("scim.write", :group)])
-    @issuer = TokenIssuer.new(@stub_uaa.url, id, secret)
-    @token = @issuer.client_credentials_grant
-    @user_acct = UserAccount.new(@stub_uaa.url, @token.auth_header)
-    @user_acct.async = @async = false
-  end
-
-  after :all do @stub_uaa.stop if @stub_uaa end
-  subject { @user_acct }
-
-  it "should create a user account" do
-    @email_addrs = 'jdoe@example.org'
-    result = frequest { subject.add(userName: "jdoe", password: "password",
-        emails: [{value: "jdoe@example.org"}], name: { givenName: "John", familyName: "Doe"}) }
-    result[:id].should_not be_nil
-    result[:emails][0][:value].should == "jdoe@example.org"
-    result[:password].should_not be
-  end
-
-  it "should match a simple eq filter" do
-    filtr = ScimFilter.new("username eq \"joe\"")
-    result = filtr.match?({username: "joe", id: "11111"})
-    result.should == true
-  end
-
-  it "should match a simple and filter" do
-    filtr = ScimFilter.new("username eq \"joe\" and id sw \"1111\"")
-    result = filtr.match?({username: "joe", id: "11111"})
-    result.should == true
-  end
-
-  it "should match a simple or filter" do
-    filtr = ScimFilter.new("username eq \"joe\" or id sw \"1111\" and foobar eq \"nothing\"")
-    result = filtr.match?({username: "joe", id: "11111"})
-    result.should == true
-  end
-
-  it "should match a simple or filter" do
-    filtr = ScimFilter.new("username eq \"joe\" or id sw \"1111\" and foobar eq \"nothing\"")
-    result = filtr.match?({username: "joe", id: "11111"})
-    result.should == true
-  end
-
-  subject { UserAccount.new(StubServer.url, 'Bearer example_access_token') }
-
-  before :each do
-    subject.debug = false
-    StubServer.use_fiber = subject.async = true
-    StubServer.responder do |request, reply|
-      reply.headers[:content_type] = "application/json;charset=UTF-8"
-      reply.body = %<{ "id":"random_id", "email":[#{@email_addrs}] }>
-      reply
+  it "should get an object" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Users/id12345"
+      method.should == :get
+      check_headers(headers, nil, :json)
+      [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
+    result = subject.get(:user, "id12345")
+    result['id'].should == "id12345"
   end
 
-  it "should create a user account" do
-    @email_addrs = '"jdoe@example.org"'
-    StubServer.request do
-      result = subject.create("jdoe", "password", "jdoe@example.org", "John", "Doe")
-      result[:id].should == "random_id"
-      result[:email].should =~ ["jdoe@example.org"]
-      result[:password].should_not be
+  it "should page through all objects" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should =~ %r{^#{@target}/Users\?attributes=id&startIndex=[12]$}
+      method.should == :get
+      check_headers(headers, nil, :json)
+      reply = url =~ /1$/ ? 
+        '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":1,"RESOURCES":[{"id":"id12345"}]}' :
+        '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":2,"RESOURCES":[{"id":"id67890"}]}'
+      [200, reply, {"content-type" => "application/json"}]
     end
-  end
-
-  it "should register a user with multiple email addresses" do
-    @email_addrs = '"jdoe@gmail.com", "jdoe@example.org"'
-    StubServer.request do
-      result = subject.create("jdoe", "password", ["jdoe@example.org", "jdoe@gmail.com"], "John", "Doe")
-      result[:id].should == "random_id"
-      result[:email].should =~ ["jdoe@example.org", "jdoe@gmail.com"]
-    end
-  end
-
-  it "should not be possible to access user accounts without an access token" do
-    expect { UserAccount.new(StubServer.url, nil) }.to raise_exception(AuthError)
-  end
-
-  it "should complain of bad response if a new user is not assigned an id" do
-   StubServer.responder do |request, reply|
-      reply.headers[:content_type] = "application/json;charset=UTF-8"
-      reply.body = %<{ "non_id":"random_id", "email":["jdoe@example.org"] }>
-      reply
-    end
-    StubServer.request do
-      expect { subject.create("jdoe", "password", "jdoe@example.org") }.to raise_exception(BadResponse)
-    end
+    result = subject.all_pages(:user, attributes: 'id')
+    result[0]['id'].should == "id12345"
+    result[1]['id'].should == "id67890"
   end
 
   it "should change a user's password" do
-    StubServer.responder do |request, reply|
-      request.headers[:authorization].should == 'Bearer example_access_token'
-      request.method.should == :put
-      request.path.should == "/User/testUserId/password"
-      request.headers[:content_type] =~ /application\/json/
-      request.body.should == '{"password":"newPassw0rd"}'
-      reply.status = 204
-      reply
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Users/id12345/password"
+      method.should == :put
+      check_headers(headers, :json, :json)
+      body.should == '{"password":"newpwd","oldPassword":"oldpwd"}'
+      [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
-    StubServer.request { subject.change_password("testUserId", "newPassw0rd") }
+    result = subject.change_password("id12345", "newpwd", "oldpwd")
+    result['id'].should == "id12345"
   end
 
-  it "should raise an error for anything other than a 204 reply" do
-    StubServer.responder { |request, reply| reply.status = 200; reply }
-    StubServer.request do
-      expect { subject.change_password("testUserId", "newPassw0rd") }.to raise_exception(BadResponse)
+  it "should change a client's secret" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/oauth/clients/id12345/secret"
+      method.should == :put
+      check_headers(headers, :json, :json)
+      body.should == '{"secret":"newpwd","oldSecret":"oldpwd"}'
+      [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
+    result = subject.change_secret("id12345", "newpwd", "oldpwd")
+    result['id'].should == "id12345"
   end
-
-  it "should find users by attribute value" do
-    @keyattr = 'id'
-    @attrname = 'foo'
-    @attrvalue = 'bar'
-    StubServer.responder do |request, reply|
-      request.headers[:authorization].should == 'Bearer example_access_token'
-      request.headers[:accept].should =~ /application\/json/
-      request.method.should == :get
-      request.path.should == "/Users?attributes=#{@keyattr}&filter=#{@attrname}+eq+%27#{@attrvalue}%27"
-      reply.headers[:content_type] = "application/json;charset=UTF-8"
-      reply.body = %<{"resources":[{"id":"aaf3af73-1a41-4918-89a3-bc9d73760a7e"}],"startIndex":1,"itemsPerPage":100,"totalResults":1,"schemas":["urn:scim:schemas:core:1.0"]}>
-      reply
-    end
-    StubServer.request do
-      output = subject.query_by_value(@keyattr, @attrname, @attrvalue)
-      output[:totalresults].should == 1
-      output[:resources][0][:id].should be
-      # puts output.inspect
-    end
-  end
-
-  it "should delete a user" do
-    @user_id = 'Test_User_Id'
-    StubServer.responder do |request, reply|
-      request.headers[:authorization].should == 'Bearer example_access_token'
-      request.method.should == :delete
-      request.path.should == "/User/#{@user_id}"
-      reply
-    end
-    StubServer.request { subject.delete(@user_id) }
-  end
-
-  it "should complain if attempting to delete a user that does not exist" do
-    @user_id = 'Test_User_Id2'
-    StubServer.responder { |request, reply| reply.status = 404; reply }
-    StubServer.request do
-      expect { subject.delete(@user_id) }.to raise_exception(NotFound)
-    end
-  end
-
-  it "should complain if attempting to delete a user fails" do
-    @user_id = 'Test_User_Id3'
-    StubServer.responder { |request, reply| reply.status = 401; reply }
-    StubServer.request do
-      expect { subject.delete(@user_id) }.to raise_exception(BadResponse)
-    end
-  end
-
-  it "should not delete a user by name if not found" do
-    @username = 'not-a-user'
-    StubServer.responder do |request, reply|
-      request.headers[:authorization].should == 'Bearer example_access_token'
-      request.headers[:accept].should =~ /application\/json/
-      request.method.should == :get
-      request.path.should == "/Users?attributes=id%2Cactive&filter=username+eq+%27#{@username}%27"
-      reply.headers[:content_type] = "application/json;charset=UTF-8"
-      reply.body = %<{"resources":[],"startIndex":1,"itemsPerPage":100,"totalResults":0,"schemas":["urn:scim:schemas:core:1.0"]}>
-      reply
-    end
-    StubServer.request do
-      expect { subject.delete_by_name(@username) }.to raise_exception(NotFound)
-    end
-  end
-
-  it "should get user info from a user id" do
-    @user_id = 'Test_User_Id4'
-    StubServer.responder do |request, reply|
-      request.headers[:authorization].should == 'Bearer example_access_token'
-      request.headers[:accept].should =~ /application\/json/
-      request.method.should == :get
-      request.path.should == "/User/#{@user_id}"
-      reply.headers[:content_type] = "application/json;charset=UTF-8"
-      reply.body = %<{ "id":"#{@user_id}", "userName":"sam",
-          "name":{"familyName":"sam","givenName":"sam"},
-          "emails":[{"value":"joe@example.com"}], "userType":"User", "active":true,
-          "meta":{"version":0,"created":"2012-03-30T19:57:38.290Z","lastModified":"2012-03-30T19:57:38.474Z"},
-          "schemas":["urn:scim:schemas:core:1.0"] }>
-      reply
-    end
-    StubServer.request do
-      output = subject.get @user_id
-      output[:id].should == @user_id
-      output[:username].should == "sam"
-      output[:usertype].should == "User"
-      output[:name][:givenname].should == "sam"
-    end
-  end
-
-  it "should get user info from a user name" do
-    @user_name = 'Test_User_5'
-    @user_id = 'Test_User_Id_5'
-    StubServer.responder do |request, reply|
-      request.headers[:authorization].should == 'Bearer example_access_token'
-      request.headers[:accept].should =~ /application\/json/
-      request.method.should == :get
-      reply.headers[:content_type] = "application/json;charset=UTF-8"
-      if request.path == "/Users?attributes=id%2Cactive&filter=username+eq+%27#{@user_name}%27"
-        reply.body = %<{"resources":[{"id":"#{@user_id}", "active":true}],"startIndex":1,"itemsPerPage":100,"totalResults":1,"schemas":["urn:scim:schemas:core:1.0"]}>
-      elsif request.path == "/User/#{@user_id}"
-        reply.body = %<{ "id":"#{@user_id}", "active":true, "userName":"#{@user_name}"}>
-      else
-        fail "bad request path"
-      end
-      reply
-    end
-    StubServer.request do
-      output = subject.get_by_name @user_name
-      output[:id].should == @user_id
-      output[:username].should == @user_name
-      # puts output.inspect
-    end
-  end
-
-  it "should change password by user name" do
-    @user_name = 'Test_User_6'
-    @user_id = 'Test_User_Id_6'
-    StubServer.responder do |request, reply|
-      reply.headers[:content_type] = "application/json;charset=UTF-8"
-      if request.path == "/Users?attributes=id%2Cactive&filter=username+eq+%27#{@user_name}%27"
-        reply.body = %<{"resources":[{"id":"#{@user_id}", "active":true}],"startIndex":1,"itemsPerPage":100,"totalResults":1,"schemas":["urn:scim:schemas:core:1.0"]}>
-      elsif request.path == "/User/#{@user_id}/password"
-        request.headers[:authorization].should == 'Bearer example_access_token'
-        request.headers[:accept].should =~ /application\/json/
-        request.method.should == :put
-        request.body.should == %<{"password":"new&password"}>
-        reply.status = 204
-      else
-        fail "bad request path"
-      end
-      reply
-    end
-    StubServer.request do
-      subject.change_password_by_name(@user_name, "new&password").should == true
-    end
-  end
-
-=end
 
 end
 

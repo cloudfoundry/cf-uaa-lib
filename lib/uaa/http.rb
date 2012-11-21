@@ -12,6 +12,7 @@
 #++
 
 require 'base64'
+require 'net/http'
 require 'uaa/util'
 
 module CF::UAA
@@ -31,58 +32,56 @@ end
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
 
-  attr_accessor :proxy
   def logger=(logr); @logger = logr end
   def logger ; @logger ||= Util.default_logger end
   def trace? ; @logger && @logger.respond_to?(:trace?) && @logger.trace? end
+
+  # sets handler for outgoing http requests. If not set, net/http is used. :yields: url, method, body, headers
   def set_request_handler(&blk) @req_handler = blk end
 
   def self.basic_auth(name, password)
     "Basic " + Base64::strict_encode64("#{name}:#{password}")
   end
 
-  # json helpers
+  def add_auth_json(auth, headers, jsonhdr = "content-type") # :nodoc:
+    headers["authorization"] = auth if auth
+    headers.merge!(jsonhdr => "application/json")
+  end
 
-  def add_auth_header(auth, headers) headers[:authorization] = auth if auth; headers end
-
-  def json_get(target, path = nil, authorization = nil, headers = {})
-    json_parse_reply(*http_get(target, path,
-        add_auth_header(authorization, headers.merge(accept: "application/json"))))
+  def json_get(target, path = nil, authorization = nil, key_style = :none, headers = {})
+    json_parse_reply(*http_get(target, path, 
+        add_auth_json(authorization, headers, "accept")), key_style)
   end
 
   def json_post(target, path, body, authorization, headers = {})
-    http_post(target, path, body.to_json,
-        add_auth_header(authorization, headers.merge(content_type: "application/json")))
+    http_post(target, path, Util.json(body), add_auth_json(authorization, headers))
   end
 
   def json_put(target, path, body, authorization = nil, headers = {})
-    http_put(target, path, body.to_json,
-        add_auth_header(authorization, headers.merge(content_type: "application/json")))
+    http_put(target, path, Util.json(body), add_auth_json(authorization, headers))
   end
 
   def json_patch(target, path, body, authorization = nil, headers = {})
-    http_patch(target, path, body.to_json,
-        add_auth_header(authorization, headers.merge(content_type: "application/json")))
+    http_patch(target, path, Util.json(body), add_auth_json(authorization, headers))
   end
 
-  def json_parse_reply(status, body, headers)
+  def json_parse_reply(status, body, headers, key_style = :none)
     unless [200, 201, 204, 400, 401, 403].include? status
       raise (status == 404 ? NotFound : BadResponse), "invalid status response: #{status}"
     end
-    if body && !body.empty? && (headers && headers[:content_type] !~ /application\/json/i || status == 204)
+    if body && !body.empty? && (status == 204 || headers.nil? || 
+          headers["content-type"] !~ /application\/json/i)
       raise BadResponse, "received invalid response content or type"
     end
-    parsed_reply = Util.json_parse(body)
+    parsed_reply = Util.json_parse(body, key_style)
     if status >= 400
-      raise parsed_reply && parsed_reply[:error] == "invalid_token" ?
+      raise parsed_reply && parsed_reply["error"] == "invalid_token" ?
           InvalidToken : TargetError.new(parsed_reply), "error response"
     end
     parsed_reply
-  rescue JSON::ParserError
+  rescue DecodeError
     raise BadResponse, "invalid JSON response"
   end
-
-  # HTTP helpers
 
   def http_get(target, path = nil, headers = {}) request(target, :get, path, nil, headers) end
   def http_post(target, path, body, headers = {}) request(target, :post, path, body, headers) end
@@ -90,7 +89,7 @@ module Http
   def http_patch(target, path, body, headers = {}) request(target, :patch, path, body, headers) end
 
   def http_delete(target, path, authorization)
-    status = request(target, :delete, path, nil, authorization: authorization)[0]
+    status = request(target, :delete, path, nil, "authorization" => authorization)[0]
     unless [200, 204].include?(status)
       raise (status == 404 ? NotFound : BadResponse), "invalid response from #{path}: #{status}"
     end
@@ -98,24 +97,18 @@ module Http
 
   private
 
-  def request(target, method, path, payload = nil, headers = {})
-    headers = headers.dup
-    headers[:proxy_user] = @proxy if @proxy unless headers[:proxy_user]
-    headers[:accept] = headers[:content_type] if headers[:content_type] && !headers[:accept]
+  def request(target, method, path, body = nil, headers = {})
+    headers["accept"] = headers["content-type"] if headers["content-type"] && !headers["accept"]
+    url = "#{target}#{path}"
 
-    req = { method: method, url: "#{target}#{path}", payload: payload,
-        headers: Util.hash_keys(headers, :todash) }
-
-    logger.debug { "--->\nrequest: #{method} #{req[:url]}\n" +
-        "headers: #{req[:headers]}\n#{'body: ' + Util.truncate(payload.to_s, trace? ? 50000 : 50) if payload}" }
-
-    status, body, response_headers = @req_handler ? 
-        @req_handler.call(req) : perform_http_request(req)
-
-    logger.debug { "<---\nresponse: #{status}\nheaders: #{response_headers}\n" +
+    logger.debug { "--->\nrequest: #{method} #{url}\n" +
+        "headers: #{headers}\n#{'body: ' + Util.truncate(body.to_s, trace? ? 50000 : 50) if body}" }
+    status, body, headers = @req_handler ? @req_handler.call(url, method, body, headers) : 
+        net_http_request(url, method, body, headers)
+    logger.debug { "<---\nresponse: #{status}\nheaders: #{headers}\n" +
         "#{'body: ' + Util.truncate(body.to_s, trace? ? 50000: 50) if body}" }
 
-    [status, body, Util.hash_keys(response_headers, :undash)]
+    [status, body, headers]
 
   rescue Exception => e
     e.message.replace "Target #{target}, #{e.message}"
@@ -123,11 +116,27 @@ module Http
     raise e
   end
 
-  def perform_http_request(req)
-    RestClient::Request.execute(req) { |resp, req| [resp.code, resp.body, resp.headers] }
+  def net_http_request(url, method, body, headers)
+    raise ArgumentError unless reqtype = {get: Net::HTTP::Get, delete: Net::HTTP::Delete, 
+        post: Net::HTTP::Post, put: Net::HTTP::Put, patch: Net::HTTP::Patch}[method]
+    headers["content-length"] = body ? body.length : 0
+    req = reqtype.new(uri.request_uri)
+    uri = URI.parse(url)
+    http_key = "#{uri.scheme}://#{uri.host}:#{uri.port}"
+    @http_cache ||= {}
+    unless http = @http_cache[http_key]
+      @http_cache[http_key] = http = Net::HTTP.new(uri.host, uri.port)
+      if uri.is_a?(URI::HTTPS)
+        http.use_ssl = true
+        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+    end
+    reply = http.request(req, body)
+    [reply.code, reply.body, reply.to_hash]
+
   rescue URI::Error, SocketError, SystemCallError => e
     raise BadTarget, "error: #{e.message}"
-  rescue RestClient::Exception, Net::HTTPBadResponse => e
+  rescue Net::HTTPBadResponse => e
     raise HTTPException, "HTTP exception: #{e.class}: #{e}"
   end
 

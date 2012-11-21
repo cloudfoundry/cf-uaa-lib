@@ -11,13 +11,10 @@
 # subcomponent's license, as noted in the LICENSE file.
 #++
 
-require "base64"
 require "openssl"
 require "uaa/util"
 
 module CF::UAA
-
-class DecodeError < UAAError; end
 
 # This class is for OAuth Resource Servers.
 # Resource Servers get tokens and need to validate and decode them,
@@ -31,25 +28,14 @@ class DecodeError < UAAError; end
 # is in the access token.
 class TokenCoder
 
-  def self.init_digest(algo)
+  def self.init_digest(algo) # :nodoc:
     OpenSSL::Digest::Digest.new(algo.sub('HS', 'sha').sub('RS', 'sha'))
-  end
-
-  def self.base64url_decode(str)
-    return nil unless str
-    str += '=' * (4 - str.length.modulo(4))
-    Base64.decode64(str.gsub("-", "+").gsub("_", "/"))
-  end
-
-  def self.base64url_encode(str)
-    return nil unless str
-    Base64.encode64(str).gsub("+", "-").gsub("/", "_").gsub("\n", "").gsub('=', '')
   end
 
   # takes a token_body (the middle section of the jwt) and returns a signed token
   def self.encode(token_body, skey, pkey = nil, algo = 'HS256')
-    segments = [base64url_encode({"typ" => "JWT", "alg" => algo}.to_json)]
-    segments << base64url_encode(token_body.to_json)
+    segments = [Util.json_encode64("typ" => "JWT", "alg" => algo)]
+    segments << Util.json_encode64(token_body)
     if ["HS256", "HS384", "HS512"].include?(algo)
       sig = OpenSSL::HMAC.digest(init_digest(algo), skey, segments.join('.'))
     elsif ["RS256", "RS384", "RS512"].include?(algo)
@@ -59,7 +45,7 @@ class TokenCoder
     else
       raise ArgumentError, "unsupported signing method"
     end
-    segments << base64url_encode(sig)
+    segments << Util.encode64(sig)
     segments.join('.')
   end
 
@@ -69,14 +55,10 @@ class TokenCoder
     raise DecodeError, "Not enough or too many segments" unless [2,3].include? segments.length
     header_segment, payload_segment, crypto_segment = segments
     signing_input = [header_segment, payload_segment].join('.')
-    begin
-      header = Util.json_parse(base64url_decode(header_segment))
-      payload = Util.json_parse(base64url_decode(payload_segment))
-      signature = base64url_decode(crypto_segment) if verify
-    rescue JSON::ParserError
-      raise DecodeError, "Invalid segment encoding"
-    end
-    return payload if !verify || (algo = header[:alg]) == "none"
+    header = Util.json_decode64(header_segment)
+    payload = Util.json_decode64(payload_segment)
+    return payload if !verify || (algo = header["alg"]) == "none"
+    signature = Util.decode64(crypto_segment)
     if ["HS256", "HS384", "HS512"].include?(algo)
       raise DecodeError, "Signature verification failed" unless
           signature == OpenSSL::HMAC.digest(init_digest(algo), skey, signing_input)
@@ -92,18 +74,15 @@ class TokenCoder
   # Create a new token en/decoder for a service that is associated with
   # the the audience_ids, the symmetrical token validation key, and the
   # public and/or private keys. Parameters:
-  #
   # * audience_ids - an array or space separated strings and should
-  # indicate values which indicate the token is intended for this service
-  # instance. It will be compared with tokens as they are decoded to
-  # ensure that the token was intended for this audience.
-  #
+  #   indicate values which indicate the token is intended for this service
+  #   instance. It will be compared with tokens as they are decoded to
+  #   ensure that the token was intended for this audience.
   # * skey - is used to sign and validate tokens using symetrical key
-  # algoruthms
-  #
+  #   algoruthms
   # * pkey - pkey may be a string or File which includes public and
-  # optionally private key data in PEM or DER formats. The private key
-  # is used to sign tokens and the public key is used to validate tokens.
+  #   optionally private key data in PEM or DER formats. The private key
+  #   is used to sign tokens and the public key is used to validate tokens.
   def initialize(audience_ids, skey, pkey = nil)
     @audience_ids, @skey, @pkey = Util.arglist(audience_ids), skey, pkey
     @pkey = OpenSSL::PKey::RSA.new(pkey) unless pkey.nil? || pkey.is_a?(OpenSSL::PKey::PKey)
@@ -115,12 +94,8 @@ class TokenCoder
   # assuming the TokenCoder instance is configured with the appropriate
   # key -- i.e. pkey must include a private key for the RS algorithms.
   def encode(token_body = {}, algorithm = 'HS256')
-    unless token_body[:aud] || token_body["aud"]
-      token_body[:aud] = @audience_ids
-    end
-    unless token_body[:exp] || token_body["exp"]
-      token_body[:exp] = Time.now.to_i + 7 * 24 * 60 * 60
-    end
+    token_body['aud'] = @audience_ids unless token_body['aud']
+    token_body['exp'] = Time.now.to_i + 7 * 24 * 60 * 60 unless token_body['exp']
     self.class.encode(token_body, @skey, @pkey, algorithm)
   end
 
@@ -133,11 +108,11 @@ class TokenCoder
       raise DecodeError, "invalid authentication header: #{auth_header}"
     end
     reply = self.class.decode(tkn[1], @skey, @pkey)
-    auds = Util.arglist(reply[:aud] || reply[:resource_ids])
+    auds = Util.arglist(reply["aud"])
     if @audience_ids && (!auds || (auds & @audience_ids).empty?)
       raise AuthError, "invalid audience: #{auds.join(' ')}"
     end
-    exp = reply[:exp] || reply[:expires_at]
+    exp = reply["exp"]
     unless exp.is_a?(Integer) && exp > Time.now.to_i
       raise AuthError, "token expired"
     end

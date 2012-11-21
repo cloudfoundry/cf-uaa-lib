@@ -16,7 +16,7 @@ $:.push File.expand_path("../lib", __FILE__)
 require "uaa/version"
 
 Gem::Specification.new do |s|
-  s.name        = "cf-uaa-client"
+  s.name        = "cf-uaa-lib"
   s.version     = CF::UAA::VERSION
   s.authors     = ["Dave Syer", "Dale Olds", "Joel D'sa", "Vidya Valmikinathan", "Luke Taylor"]
   s.email       = ["dsyer@vmware.com", "olds@vmware.com", "jdsa@vmware.com", "vidya@vmware.com", "ltaylor@vmware.com"]
@@ -24,7 +24,7 @@ Gem::Specification.new do |s|
   s.summary     = %q{Client library for CloudFoundry UAA}
   s.description = %q{Client library for interacting with the CloudFoundry User Account and Authorization (UAA) server.  The UAA is an OAuth2 Authorization Server so it can be used by webapps and command line apps to obtain access tokens to act on behalf of users.  The tokens can then be used to access protected resources in a Resource Server.  This library is for use by UAA client applications or resource servers.}
 
-  s.rubyforge_project = "cf-uaa-client"
+  s.rubyforge_project = "cf-uaa-lib"
 
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
@@ -32,12 +32,14 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
 
   # dependencies
+  s.add_dependency "multi_json"
+
   s.add_development_dependency "bundler"
   s.add_development_dependency "rake"
+  s.add_development_dependency "rdoc"
   s.add_development_dependency "rspec"
   s.add_development_dependency "simplecov"
   s.add_development_dependency "simplecov-rcov"
   s.add_development_dependency "ci_reporter"
-  s.add_runtime_dependency "yajl-ruby"
 
 end

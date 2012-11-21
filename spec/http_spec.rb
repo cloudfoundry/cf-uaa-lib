@@ -29,7 +29,7 @@ describe Http do
     status, body, resp_headers = http_get("http://example.com")
     status.should == 200
     body.should == "body"
-    resp_headers[:content_type].should == "text/plain"
+    resp_headers["content-type"].should == "text/plain"
   end
 
 end

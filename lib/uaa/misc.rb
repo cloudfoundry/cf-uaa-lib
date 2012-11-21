@@ -32,45 +32,12 @@ class Misc
     include Http
   end
 
-  def self.check_id(target, token)
-    reply = json_get(target, "/check_id", "Bearer #{token}")
-  # To verify the validity of the Token response, the Client MUST do the following:
-  # - Check that the OP that responded was really the intended OP.
-  # - The Client MUST validate that the client_id in the aud (audience) Claim
-  #   is one it has registered for the Issuer identified by the value in the
-  #   iss (issuer) Claim. The ID Token MUST be rejected if the value of aud
-  #   (audience) is not valid for the Issuer.
-  # - The value of the iss (issuer) Claim must match the Issuer for the
-  #   Check ID Endpoint
-  # - The current time MUST be less than the value of the exp Claim.
-  # - The value of the nonce Claim MUST be checked to verify that it is the
-  #   same value as the one that was sent in the Authorization Request. The
-  #   Client SHOULD check the nonce value for replay attacks. The precise
-  #   method for detecting replay attacks is Client specific.
-  # - If the acr Claim was requested, the Client SHOULD check that the asserted
-  #   Claim Value is appropriate. The meaning and processing of acr Claim
-  #   Values is out of scope for this specification.
-  # - If the auth_time Claim was requested, the Client SHOULD check the value
-  #   and request re-authentication if it determines too much time has elapsed
-  #   since the last user authentication.
-  # - The Check ID Endpoint has not returned an error for the ID Token being
-  #   expired or invalid.
-  # - Check that the iss (issuer) is equal to that of the pre-configured or
-  #   discovered Issuer Identifier for the user session.
-  # - The iat Claim may be used by the client to reject tokens that were issued
-  #   too far away from the current time, limiting the amount of time that
-  #   nonces must be stored to prevent attacks. The acceptable range is Client
-  #   specific.
-    reply
-  end
-
-  def self.whoami(target, auth_header)
-    json_get(target, "/userinfo?schema=openid", auth_header)
-  end
+  def self.whoami(target, auth_header) json_get(target, "/userinfo?schema=openid", auth_header) end
+  def self.varz(target, name, pwd) json_get(target, "/varz", Http.basic_auth(name, pwd)) end
 
   def self.server(target)
-    reply = json_get target, '/login'
-    return reply if reply && reply[:prompts]
+    reply = json_get(target, '/login')
+    return reply if reply && reply["prompts"]
     raise BadResponse, "Invalid response from target #{target}"
   end
 
@@ -83,7 +50,7 @@ class Misc
   def self.decode_token(target, client_id, client_secret, token, token_type = "bearer", audience_ids = nil)
     reply = json_get(target, "/check_token?token_type=#{token_type}&token=#{token}",
         Http.basic_auth(client_id, client_secret))
-    auds = Util.arglist(reply[:aud] || reply[:resource_ids])
+    auds = Util.arglist(reply["aud"])
     if audience_ids && (!auds || (auds & audience_ids).empty?)
       raise AuthError, "invalid audience: #{auds.join(' ')}"
     end
@@ -91,12 +58,8 @@ class Misc
   end
 
   def self.password_strength(target, password)
-    json_parse_reply(*request(target, :post, '/password/score', URI.encode_www_form(password: password),
-        content_type: "application/x-www-form-urlencoded", accept: "application/json"))
-  end
-
-  def self.varz(target, name, pwd)
-    json_get(target, "/varz", Http.basic_auth(name, pwd))
+    json_parse_reply(*request(target, :post, '/password/score', URI.encode_www_form("password" => password),
+        "content-type" => "application/x-www-form-urlencoded", "accept" => "application/json"))
   end
 
 end

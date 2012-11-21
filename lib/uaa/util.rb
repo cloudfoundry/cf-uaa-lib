@@ -11,13 +11,18 @@
 # subcomponent's license, as noted in the LICENSE file.
 #++
 
-require 'yajl/json_gem'
+require 'multi_json'
+require "base64"
 require 'logger'
 require 'uri'
 
-module CF; module UAA end end
+# :nodoc:
+module CF
+  # Namespace for Cloudfoundry UAA 
+  module UAA end
+end
 
-class Logger
+class Logger # :nodoc:
   Severity::TRACE = Severity::DEBUG - 1
   def trace(progname, &blk); add(Logger::Severity::TRACE, nil, progname, &blk) end
   def trace? ; @level <= Logger::Severity::TRACE end
@@ -25,53 +30,82 @@ end
 
 module CF::UAA
 
+# all CF::UAA exceptions are derived from UAAError
 class UAAError < RuntimeError; end
+
+# Authentication error
 class AuthError < UAAError; end
 
+# error for decoding tokens, base64 encoding, or json
+class DecodeError < UAAError; end
+
+# low level helper functions useful to the UAA client APIs
 class Util
 
-  # http headers and various protocol tags tend to contain '-' characters
-  # and are intended to be case-insensitive -- and often end up as keys in ruby
-  # hashes. The :undash style converts these keys to symbols, downcased for at least
+  # http headers and various protocol tags tend to contain '-' characters,
+  # are intended to be case-insensitive, and often end up as keys in ruby
+  # hashes. The :undash style converts to lowercase for at least
   # consistent case if not exactly case insensitive, and with '_' instead
   # of '-' for ruby convention. :todash reverses :undash (except for case).
   # :uncamel and :tocamel provide similar translations for camel-case keys.
+  # returns new key or nil if key should not change.
   def self.hash_key(k, style)
-    case style
-    when :undash then k.to_s.downcase.tr('-', '_').to_sym
-    when :todash then k.to_s.tr('_', '-')
-    when :uncamel then k.to_s.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').downcase.to_sym
-    when :tocamel then k.to_s.gsub(/(_[a-z])([^_]*)/) { $1[1].upcase + $2 }
-    when :downsym then k.to_s.downcase.to_sym
-    when :tosym then k.to_s.to_sym
-    when :tostr then k.to_s
-    when :none then k
-    else raise "unknown hash key style: #{style}"
+    nk = case style
+      when :undash then k.to_s.downcase.tr('-', '_').to_sym
+      when :todash then k.to_s.downcase.tr('_', '-')
+      when :uncamel then k.to_s.downcase.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').to_sym
+      when :tocamel then k.to_s.gsub(/(_[a-z])([^_]*)/) { $1[1].upcase + $2 }
+      when :tosym then k.to_sym
+      when :tostr then k.to_s
+      when :down then k.to_s.downcase
+      when :none then k
+      else raise "unknown hash key style: #{style}"
     end
+    nk unless nk == k
   end
 
-  def self.hash_keys(obj, style = :tosym)
-    return obj.collect {|o| hash_keys(o, style)} if obj.is_a? Array
+  # modifies obj in place changing any hash keys to style (see hash_key). Recursively
+  # modifies subordinate hashes.
+  # returns obj
+  def self.hash_keys!(obj, style = :none)
+    return obj if style == :none
+    return obj.each {|o| hash_keys!(o, style)} if obj.is_a? Array
     return obj unless obj.is_a? Hash
-    obj.each_with_object({}) {|(k, v), h| h[hash_key(k, style)] = hash_keys(v, style) }
+    newkeys, nk = {}, nil
+    obj.delete_if { |k, v| newkeys[nk] = v if nk = hash_key(k, style); nk }
+    obj.merge!(newkeys)
   end
 
-  # Takes an x-www-form-urlencoded string and returns a hash of symbol => value.
+  # Takes an x-www-form-urlencoded string and returns a hash of key value pairs.
   # Useful for OAuth parameters. It raises an ArgumentError if a key occurs
   # more than once, which is a restriction of OAuth query strings.
-  # See draft-ietf-oauth-v2-23 section 3.1.
+  # See ietf rfc 6749 section 3.1.
   def self.decode_form_to_hash(url_encoded_pairs)
     URI.decode_www_form(url_encoded_pairs).each_with_object({}) do |p, o|
-      k = p[0].downcase.to_sym
-      raise ArgumentError, "duplicate keys in form parameters" if o[k]
+      raise ArgumentError, "duplicate keys in form parameters" if o[k = p[0]]
       o[k] = p[1]
     end
   rescue Exception => e
     raise ArgumentError, e.message
   end
 
-  def self.json_parse(str, style = :tosym)
-    hash_keys(JSON.parse(str), style) if str && !str.empty?
+  def self.json(obj) MultiJson.dump(obj) end
+  def self.json_encode64(obj = {}) encode64(json(obj)) end
+  def self.json_decode64(str) json_parse(decode64(str)) end
+  def self.encode64(obj) Base64::urlsafe_encode64(obj).gsub(/=*$/, '') end
+  def self.decode64(str)
+    return unless str
+    pad = str.length % 4
+    str << '=' * (4 - pad) if pad > 0
+    Base64::urlsafe_decode64(str)
+  rescue ArgumentError
+    raise DecodeError, "invalid base64 encoding"
+  end
+
+  def self.json_parse(str, style = :none)
+    hash_keys!(MultiJson.load(str), style) if str && !str.empty?
+  rescue MultiJson::DecodeError
+    raise DecodeError, "json decoding error"
   end
 
   def self.truncate(obj, limit = 50)

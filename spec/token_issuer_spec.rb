@@ -21,79 +21,77 @@ describe TokenIssuer do
 
   include SpecHelper
 
-=begin
-
   before :all do
     #Util.default_logger(:trace)
-    @stub_uaa = StubUAA.new.run_on_thread
-    readers = @stub_uaa.scim.add(:group, displayname: "logs.read")
-    @stub_uaa.scim.add(:client, client_id: "test_client", client_secret: "test_secret",
-        authorized_grant_types: ["client_credentials", "authorization_code",
-            "password", "implicit", "refresh_token"],
-        authorities: [readers, @stub_uaa.scim.id("scim.read", :group),
-            @stub_uaa.scim.id("openid", :group)],
-        scope: [@stub_uaa.scim.id("openid", :group), readers],
-        access_token_validity: 60 * 60 * 24 * 8 )
-    id = @stub_uaa.scim.add(:user, username: "joe+admin", password: "?joe's%password$@ ")
-    @stub_uaa.auto_groups.each {|g| @stub_uaa.scim.add_member(g, id)}
-    @stub_uaa.scim.add_member(readers, id)
-    @issuer = TokenIssuer.new(@stub_uaa.url, "test_client", "test_secret")
-    @issuer.async = @async = false
-    @state = {}
+    @issuer = TokenIssuer.new("http://test.uaa.target", "test_client", "test_secret")
   end
 
-  after :all do @stub_uaa.stop if @stub_uaa end
-  before :each do @stub_uaa.reply_badly = :none end
   subject { @issuer }
-
-  def check_good_token(token, scope, client_id)
-    token.should be_an_instance_of Token
-    scope = Util.arglist(scope).to_set
-    token.info[:access_token].should_not be_nil
-    token.info[:token_type].should match /^bearer$/i
-    Util.arglist(token.info[:scope]).to_set.should == scope
-    token.info[:expires_in].should == 60 * 60 * 24 * 8
-    contents = TokenCoder.decode(token.info[:access_token])
-    Util.arglist(contents[:scope]).to_set.should == scope
-    contents[:jti].should_not be_nil
-    contents[:client_id].should == client_id
-  end
 
   context "with client credentials grant" do
 
     it "should get a token with client credentials" do
-      result = frequest { subject.client_credentials_grant("logs.read") }
-      check_good_token result, "logs.read", "test_client"
+      subject.set_request_handler do |url, method, body, headers|
+        headers["content-type"].should =~ /application\/x-www-form-urlencoded/
+        headers["accept"].should =~ /application\/json/
+        # TODO check basic auth header
+        url.should == "http://test.uaa.target/oauth/token"
+        method.should == :post
+        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "logs.read", expires_in: 98765}
+        [200, Util.json(reply), {"content-type" => "application/json"}]
+      end
+      token = subject.client_credentials_grant("logs.read")
+      token.should be_an_instance_of Token
+      token.info["access_token"].should == "test_access_token"
+      token.info["token_type"].should =~ /^bearer$/i
+      token.info["scope"].should == "logs.read"
+      token.info["expires_in"].should == 98765
     end
 
     it "should get all granted scopes if none specified" do
-      result = frequest { subject.client_credentials_grant }
-      check_good_token result, "logs.read scim.read openid", "test_client"
+      subject.set_request_handler do |url, method, body, headers|
+        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "openid logs.read", expires_in: 98765}
+        [200, Util.json(reply), {"content-type" => "application/json"}]
+      end
+      token = subject.client_credentials_grant
+      Util.arglist(token.info["scope"]).to_set.should == Util.arglist("openid logs.read").to_set
     end
 
     it "should raise a bad response error if response content type is not json" do
-      @stub_uaa.reply_badly = :non_json
-      result = frequest { subject.client_credentials_grant }
-      result.should be_an_instance_of BadResponse
+      subject.set_request_handler { [200, "not json", {"content-type" => "text/html"}] }
+      expect {subject.client_credentials_grant}.to raise_exception BadResponse
     end
 
     it "should raise a bad response error if the response is not proper json" do
-      @stub_uaa.reply_badly = :bad_json
-      result = frequest { subject.client_credentials_grant }
-      result.should be_an_instance_of BadResponse
+      subject.set_request_handler { [200, "bad json", {"content-type" => "application/json"}] }
+      expect {subject.client_credentials_grant}.to raise_exception BadResponse
     end
 
     it "should raise a target error if the response is 400 with valid oauth json error" do
-      result = frequest { subject.client_credentials_grant("bad.scope") }
-      result.should be_an_instance_of TargetError
+      subject.set_request_handler { [400, '{"error":"invalid scope"}', {"content-type" => "application/json"}] }
+      expect {subject.client_credentials_grant("bad.scope")}.to raise_exception TargetError
     end
+
   end
 
   context "with owner password grant" do
 
     it "should get a token with owner password" do
-      result = frequest { subject.owner_password_grant("joe+admin", "?joe's%password$@ ", "openid") }
-      check_good_token result, "openid", "test_client"
+      subject.set_request_handler do |url, method, body, headers|
+        headers["content-type"].should =~ /application\/x-www-form-urlencoded/
+        headers["accept"].should =~ /application\/json/
+        # TODO check basic auth header
+        url.should == "http://test.uaa.target/oauth/token"
+        method.should == :post
+        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "openid", expires_in: 98765}
+        [200, Util.json(reply), {"content-type" => "application/json"}]
+      end
+      token = subject.owner_password_grant("joe+admin", "?joe's%password$@ ", "openid")
+      token.should be_an_instance_of Token
+      token.info["access_token"].should == "test_access_token"
+      token.info["token_type"].should =~ /^bearer$/i
+      token.info["scope"].should == "openid"
+      token.info["expires_in"].should == 98765
     end
 
   end
@@ -101,32 +99,50 @@ describe TokenIssuer do
   context "with implicit grant" do
 
     it "should be able to get the prompts for credentials used to authenticate implicit grant" do
-      result = frequest { subject.prompts }
+      subject.set_request_handler do |url, method, body, headers|
+        info = { prompts: {username: ["text", "Username"], password: ["password","Password"]} }
+        [200, Util.json(info), {"content-type" => "application/json"}]
+      end
+      result = subject.prompts
       result.should_not be_empty
     end
 
     it "should raise a bad target error if no prompts are received" do
-      prompts = @stub_uaa.info.delete(:prompts) # remove the prompts temporarily
-      result = frequest { subject.prompts }
-      @stub_uaa.info[:prompts] = prompts # put them back
-      result.should be_an_instance_of BadResponse
+      subject.set_request_handler do |url, method, body, headers|
+        [200, Util.json({}), {"content-type" => "application/json"}]
+      end
+      expect { subject.prompts }.to raise_exception BadResponse
     end
 
     it "should get an access token" do
-      result = frequest { subject.implicit_grant_with_creds(username: "joe+admin", password: "?joe's%password$@ ") }
-      check_good_token result, "openid logs.read", "test_client"
+      subject.set_request_handler do |url, method, body, headers|
+        headers["content-type"].should =~ /application\/x-www-form-urlencoded/
+        headers["accept"].should =~ /application\/json/
+        url.should match "http://test.uaa.target/oauth/authorize"
+        (state = /state=([^&]+)/.match(url)[1]).should_not be_nil
+        method.should == :post
+        location = "https://uaa.cloudfoundry.com/redirect/test_client#" +
+            "access_token=test_access_token&token_type=bearer&" +
+            "expires_in=98765&scope=openid+logs.read&state=#{state}"
+        [302, nil, {"content-type" => "application/json", "location" => location}]
+      end
+      token = subject.implicit_grant_with_creds(username: "joe+admin", password: "?joe's%password$@ ")
+      token.should be_an_instance_of Token
+      token.info["access_token"].should == "test_access_token"
+      token.info["token_type"].should =~ /^bearer$/i
+      Util.arglist(token.info["scope"]).to_set.should == Util.arglist("openid logs.read").to_set
+      token.info["expires_in"].should == 98765
     end
 
     it "should reject an access token with wrong state" do
-      @stub_uaa.reply_badly = :bad_state
-      result = frequest { subject.implicit_grant_with_creds(username: "joe+admin", password: "?joe's%password$@ ") }
-      result.should be_an_instance_of BadResponse
-    end
-
-    it "should reject an access token with no type" do
-      @stub_uaa.reply_badly = :no_token_type
-      result = frequest { subject.implicit_grant_with_creds(username: "joe+admin", password: "?joe's%password$@ ") }
-      result.should be_an_instance_of BadResponse
+      subject.set_request_handler do |url, method, body, headers|
+        location = "https://uaa.cloudfoundry.com/redirect/test_client#" +
+            "access_token=test_access_token&token_type=bearer&" +
+            "expires_in=98765&scope=openid+logs.read&state=bad_state"
+        [302, nil, {"content-type" => "application/json", "location" => location}]
+      end
+      expect {token = subject.implicit_grant_with_creds(username: "joe+admin", 
+              password: "?joe's%password$@ ")}.to raise_exception BadResponse
     end
 
   end
@@ -136,64 +152,38 @@ describe TokenIssuer do
     it "should get the authcode uri to be sent to the user agent for an authcode" do
       redir_uri = "http://call.back/uri_path"
       uri_parts = subject.authcode_uri(redir_uri).split('?')
-      uri_parts[0].should == "#{@stub_uaa.url}/oauth/authorize"
+      uri_parts[0].should == "http://test.uaa.target/oauth/authorize"
       params = Util.decode_form_to_hash(uri_parts[1])
-      params[:response_type].should == "code"
-      params[:client_id].should == "test_client"
-      params[:scope].should be_nil
-      params[:redirect_uri].should == redir_uri
-      params[:state].should_not be_nil
+      params["response_type"].should == "code"
+      params["client_id"].should == "test_client"
+      params["scope"].should be_nil
+      params["redirect_uri"].should == redir_uri
+      params["state"].should_not be_nil
     end
 
     it "should get an access token with an authorization code" do
+      subject.set_request_handler do |url, method, body, headers|
+        headers["content-type"].should =~ /application\/x-www-form-urlencoded/
+        headers["accept"].should =~ /application\/json/
+        # TODO check basic auth header
+        url.should match "http://test.uaa.target/oauth/token"
+        method.should == :post
+        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "openid", expires_in: 98765}
+        [200, Util.json(reply), {"content-type" => "application/json"}]
+      end
       cburi = "http://call.back/uri_path"
       redir_uri = subject.authcode_uri(cburi)
-      test_uri = "#{redir_uri}&#{URI.encode_www_form(emphatic_user: 'joe+admin')}"
-      status, body, headers = frequest { subject.http_get(test_uri) }
-      status.should == 302
-      m = %r{^#{Regexp.escape(cburi)}\?(.*)$}.match(headers[:location])
-      m.should_not be_nil
-      result = frequest { subject.authcode_grant(redir_uri, m[1]) }
-      check_good_token result, "openid logs.read", "test_client"
-      result.info[:refresh_token].should_not be_nil
-      @state[:refresh_token] = result.info[:refresh_token]
+      state = /state=([^&]+)/.match(redir_uri)[1]
+      reply_query = "state=#{state}&code=kz8%2F5gQZ2pc%3D"
+      token = subject.authcode_grant(redir_uri, reply_query)
+      token.should be_an_instance_of Token
+      token.info["access_token"].should == "test_access_token"
+      token.info["token_type"].should =~ /^bearer$/i
+      token.info["scope"].should == "openid"
+      token.info["expires_in"].should == 98765
     end
 
-    it "should get an access token with a specific scope" do
-      cburi = "http://call.back/uri_path"
-      redir_uri = subject.authcode_uri(cburi, "logs.read")
-      test_uri = "#{redir_uri}&#{URI.encode_www_form(emphatic_user: 'joe+admin')}"
-      status, body, headers = frequest { subject.http_get(test_uri) }
-      status.should == 302
-      m = %r{^#{Regexp.escape(cburi)}\?(.*)$}.match(headers[:location])
-      m.should_not be_nil
-      result = frequest { subject.authcode_grant(redir_uri, m[1]) }
-      check_good_token result, "logs.read", "test_client"
-      result.info[:refresh_token].should_not be_nil
-      @state[:refresh_token] = result.info[:refresh_token]
-    end
-
-    it "should reject an access token with an invalid state" do
-      authcode_uri = subject.authcode_uri "http://call.back/uri_path"
-      expect { subject.authcode_grant(authcode_uri, "code=good.auth.code&state=invalid-state") }
-        .to raise_exception(BadResponse)
-    end
   end
-
-  context "with refresh token grant" do
-
-    it "should get an access token with a refresh token" do
-      result = frequest { subject.refresh_token_grant(@state[:refresh_token]) }
-      check_good_token result, "openid logs.read", "test_client"
-    end
-
-    it "should get an access token with specific scope" do
-      result = frequest { subject.refresh_token_grant(@state[:refresh_token], "openid") }
-      check_good_token result, "openid", "test_client"
-    end
-  end
-
-=end
 
 end
 

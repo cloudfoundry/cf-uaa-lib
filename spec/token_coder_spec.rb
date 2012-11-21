@@ -34,14 +34,14 @@ describe TokenCoder do
     tkn = subject.encode(@tkn_body, 'HS512')
     result = subject.decode("bEaReR #{tkn}")
     result.should_not be_nil
-    result[:foo].should == "bar"
+    result["foo"].should == "bar"
   end
 
   it "should be able to encode/decode a token using pub/priv key" do
     tkn = subject.encode(@tkn_body, 'RS256')
     result = subject.decode("bEaReR #{tkn}")
     result.should_not be_nil
-    result[:foo].should == "bar"
+    result["foo"].should == "bar"
   end
 
   it "should be able to encode/decode a token using pub/priv key from PEM" do
@@ -60,14 +60,14 @@ describe TokenCoder do
     tkn = coder.encode(@tkn_body, 'RS256')
     result = coder.decode("bEaReR #{tkn}")
     result.should_not be_nil
-    result[:foo].should == "bar"
+    result["foo"].should == "bar"
   end
 
   it "should be able to encode/decode with no signature" do
     tkn = subject.encode(@tkn_body, 'none')
     result = subject.decode("bEaReR #{tkn}")
     result.should_not be_nil
-    result[:foo].should == "bar"
+    result["foo"].should == "bar"
   end
 
   it "should raise an error if the signing algorithm is not supported" do
@@ -86,9 +86,9 @@ describe TokenCoder do
   end
 
   it "should raise a decode error if the token is an unknown signing algorithm" do
-    segments = [TokenCoder.base64url_encode({"typ" => "JWT", "alg" => "BADALGO"}.to_json)]
-    segments << TokenCoder.base64url_encode(@tkn_body.to_json)
-    segments << TokenCoder.base64url_encode("BADSIG")
+    segments = [Util.json_encode64(typ: "JWT", alg:"BADALGO")]
+    segments << Util.json_encode64(@tkn_body)
+    segments << Util.encode64("BADSIG")
     tkn = segments.join('.')
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
@@ -101,9 +101,9 @@ describe TokenCoder do
   end
 
   it "should raise a decode error if a token segment is malformed" do
-    segments = [TokenCoder.base64url_encode("this is not json")]
-    segments << TokenCoder.base64url_encode("n/a")
-    segments << TokenCoder.base64url_encode("n/a")
+    segments = [Util.encode64("this is not json")]
+    segments << Util.encode64("n/a")
+    segments << Util.encode64("n/a")
     tkn = segments.join('.')
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
@@ -116,8 +116,8 @@ describe TokenCoder do
   it "should decode a token, but not require validation" do
     token = "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImY1MTgwMjExLWVkYjItNGQ4OS1hNmQwLThmNGVjMTE0NTE4YSIsInJlc291cmNlX2lkcyI6WyJjbG91ZF9jb250cm9sbGVyIiwicGFzc3dvcmQiXSwiZXhwaXJlc19hdCI6MTMzNjU1MTc2Niwic2NvcGUiOlsicmVhZCJdLCJlbWFpbCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9hdXRob3JpdGllcyI6WyJST0xFX1VOVFJVU1RFRCJdLCJleHBpcmVzX2luIjo0MzIwMCwidXNlcl9hdXRob3JpdGllcyI6WyJST0xFX1VTRVIiXSwidXNlcl9pZCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9pZCI6InZtYyIsInRva2VuX2lkIjoiZWRlYmYzMTctNWU2Yi00YmYwLWFmM2ItMTA0OWRjNmFlYjc1In0.XoirrePfEujnZ9Vm7SRRnj3vZEfRp2tkjkS_OCVz5Bs"
     info = TokenCoder.decode(token, nil, nil, false)
-    info[:id].should_not be_nil
-    info[:email].should == "olds@vmware.com"
+    info["id"].should_not be_nil
+    info["email"].should == "olds@vmware.com"
     #puts Time.at(info[:exp].to_i)
     #BaseCli.pp info
   end
