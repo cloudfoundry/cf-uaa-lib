@@ -50,7 +50,7 @@ describe Scim do
 
   it "should replace an object" do
     obj = {hair: "black", shoe_size: "medium", eye_color: ["hazel", "brown"], 
-          name: "fredrick", meta: {version: 'v567'}}
+          name: "fredrick", meta: {version: 'v567'}, id: "id12345"}
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :put
@@ -58,7 +58,7 @@ describe Scim do
       headers["if-match"].should == "v567"
       [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
-    result = subject.put(:user, "id12345", obj)
+    result = subject.put(:user, obj)
     result["id"].should == "id12345"
   end
 

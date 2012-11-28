@@ -72,7 +72,11 @@ class Util
     return obj.each {|o| hash_keys!(o, style)} if obj.is_a? Array
     return obj unless obj.is_a? Hash
     newkeys, nk = {}, nil
-    obj.delete_if { |k, v| newkeys[nk] = v if nk = hash_key(k, style); nk }
+    obj.delete_if { |k, v| 
+      hash_keys!(v, style)
+      newkeys[nk] = v if nk = hash_key(k, style)
+      nk 
+    }
     obj.merge!(newkeys)
   end
 

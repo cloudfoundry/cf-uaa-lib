@@ -49,12 +49,21 @@ class Scim
     obj.each_with_object({}) {|(k, v), h| h[force_attr(k)] = force_case(v) }
   end
 
-  def prep_request(type, info = nil)
-    unless path = {user: "/Users", group: "/Groups", client: "/oauth/clients", 
-        user_id: "/ids/Users"}[type]
-      raise ArgumentError, "scim resource type must be :user, :group, :client, :user_id"
+  # an attempt to hide some scim and uaa oddities
+  def type_info(type, elem)
+    scimfo = {user: ["/Users", "userName"], group: ["/Groups", "displayName"],
+      client: ["/oauth/clients", 'client_id'], user_id: ["/ids/Users", 'userName']}
+    unless elem == :path || elem == :name_attr
+      raise ArgumentError, "scim schema element must be :path or :name_attr"
     end
-    [path, force_case(info)]
+    unless ary = scimfo[type]
+      raise ArgumentError, "scim resource type must be one of #{scimfo.keys.inspect}"
+    end
+    ary[elem == :path ? 0 : 1]
+  end
+
+  def prep_request(type, info = nil) 
+    [type_info(type, :path), force_case(info)] 
   end
 
   public
@@ -73,9 +82,16 @@ class Scim
     raise BadResponse, "no id returned by add request to #{@target}#{path}"
   end
 
-  # info is a hash structure converted to json and sent to the scim /Users endpoint
-  def put(type, id, info)
+  def delete(type, id) 
+    path, _ = prep_request(type)
+    http_delete @target, "#{path}/#{URI.encode(id)}", @auth_header
+  end
+  
+    # info is a hash structure converted to json and sent to the scim /Users endpoint
+  def put(type, info)
     path, info = prep_request(type, info)
+    ida = type == :client ? 'client_id' : 'id'
+    raise ArgumentError, "scim info must include #{ida}" unless id = info[ida]
     hdrs = info && info["meta"] && info["meta"]["version"] ? 
         {'if-match' => info["meta"]["version"]} : {}
     json_parse_reply(*json_put(@target, "#{path}/#{URI.encode(id)}", info,
@@ -108,6 +124,16 @@ class Scim
   def get(type, id) 
     path, _ = prep_request(type)
     json_get(@target, "#{path}/#{URI.encode(id)}", @auth_header, :down)
+  end
+
+  # convenience method, queries for object by name. returns its id.
+  def id(type, name)
+    info = query(type, filter: "#{type_info(type, :name_attr)} eq \"#{name}\"")
+    unless info && info["resources"] && info["resources"].length == 1 &&
+        info["resources"][0] && (id = info["resources"][0]["id"])
+      raise NotFound, "#{name} not found in #{@target}#{type_info(type, :path)}"
+    end
+    id
   end
 
   # collects all pages of entries from a query, returns array of results.
