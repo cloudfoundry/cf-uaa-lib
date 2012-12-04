@@ -25,26 +25,26 @@ describe TokenCoder do
     @tkn_secret = "test_secret"
   end
 
-  it "should raise a decode error if the given auth header is bad" do
+  it "raises a decode error if the given auth header is bad" do
     expect { subject.decode(nil) }.to raise_exception(DecodeError)
     expect { subject.decode("one two three") }.to raise_exception(DecodeError)
   end
 
-  it "should be able to encode/decode a token using a symmetrical key" do
+  it "encodes/decodes a token using a symmetrical key" do
     tkn = subject.encode(@tkn_body, 'HS512')
     result = subject.decode("bEaReR #{tkn}")
     result.should_not be_nil
     result["foo"].should == "bar"
   end
 
-  it "should be able to encode/decode a token using pub/priv key" do
+  it "encodes/decodes a token using pub/priv key" do
     tkn = subject.encode(@tkn_body, 'RS256')
     result = subject.decode("bEaReR #{tkn}")
     result.should_not be_nil
     result["foo"].should == "bar"
   end
 
-  it "should be able to encode/decode a token using pub/priv key from PEM" do
+  it "encodes/decodes a token using pub/priv key from PEM" do
     pem = <<-DATA.gsub(/^ +/, '')
       -----BEGIN RSA PRIVATE KEY-----
       MIIBOwIBAAJBAN+5O6n85LSs/fj46Ht1jNbc5e+3QX+suxVPJqICvuV6sIukJXXE
@@ -63,29 +63,29 @@ describe TokenCoder do
     result["foo"].should == "bar"
   end
 
-  it "should be able to encode/decode with no signature" do
+  it "encodes/decodes with 'none' signature" do
     tkn = subject.encode(@tkn_body, 'none')
     result = subject.decode("bEaReR #{tkn}")
     result.should_not be_nil
     result["foo"].should == "bar"
   end
 
-  it "should raise an error if the signing algorithm is not supported" do
+  it "raises an error if the signing algorithm is not supported" do
     expect { subject.encode(@tkn_body, 'baz') }.to raise_exception(ArgumentError)
   end
 
-  it "should raise an auth error if the token is for another resource server" do
+  it "raises an auth error if the token is for another resource server" do
     tkn = subject.encode({'aud' => ["other_resource"], 'foo' => "bar"})
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(AuthError)
   end
 
-  it "should raise a decode error if the token is signed by an unknown signing key" do
+  it "raises a decode error if the token is signed by an unknown signing key" do
     other = TokenCoder.new("test_resource", "other_secret", nil)
     tkn = other.encode(@tkn_body)
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
 
-  it "should raise a decode error if the token is an unknown signing algorithm" do
+  it "raises a decode error if the token is an unknown signing algorithm" do
     segments = [Util.json_encode64(typ: "JWT", alg:"BADALGO")]
     segments << Util.json_encode64(@tkn_body)
     segments << Util.encode64("BADSIG")
@@ -93,14 +93,14 @@ describe TokenCoder do
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
 
-  it "should raise a decode error if the token is malformed" do
+  it "raises a decode error if the token is malformed" do
     tkn = "one.two.three.four"
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
     tkn = "onlyone"
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
 
-  it "should raise a decode error if a token segment is malformed" do
+  it "raises a decode error if a token segment is malformed" do
     segments = [Util.encode64("this is not json")]
     segments << Util.encode64("n/a")
     segments << Util.encode64("n/a")
@@ -108,12 +108,12 @@ describe TokenCoder do
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
 
-  it "should raise an auth error if the token has expired" do
+  it "raises an auth error if the token has expired" do
     tkn = subject.encode({'foo' => "bar", 'exp' => Time.now.to_i - 60 })
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(AuthError)
   end
 
-  it "should decode a token, but not require validation" do
+  it "decodes a token without validation" do
     token = "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImY1MTgwMjExLWVkYjItNGQ4OS1hNmQwLThmNGVjMTE0NTE4YSIsInJlc291cmNlX2lkcyI6WyJjbG91ZF9jb250cm9sbGVyIiwicGFzc3dvcmQiXSwiZXhwaXJlc19hdCI6MTMzNjU1MTc2Niwic2NvcGUiOlsicmVhZCJdLCJlbWFpbCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9hdXRob3JpdGllcyI6WyJST0xFX1VOVFJVU1RFRCJdLCJleHBpcmVzX2luIjo0MzIwMCwidXNlcl9hdXRob3JpdGllcyI6WyJST0xFX1VTRVIiXSwidXNlcl9pZCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9pZCI6InZtYyIsInRva2VuX2lkIjoiZWRlYmYzMTctNWU2Yi00YmYwLWFmM2ItMTA0OWRjNmFlYjc1In0.XoirrePfEujnZ9Vm7SRRnj3vZEfRp2tkjkS_OCVz5Bs"
     info = TokenCoder.decode(token, nil, nil, false)
     info["id"].should_not be_nil

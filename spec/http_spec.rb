@@ -22,7 +22,7 @@ describe Http do
   include Http
   include SpecHelper
 
-  it "should set a request handler" do
+  it "sets a request handler" do
     set_request_handler do |req|
       [200, "body", {"content-type" => "text/plain"}]
     end
