@@ -36,7 +36,7 @@ describe Scim do
     headers["authorization"].should =~ /^(?i:bearer)\s+xyz$/
   end
 
-  it "should add an object" do
+  it "adds an object" do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users"
       method.should == :post
@@ -48,7 +48,7 @@ describe Scim do
     result["id"].should == "id12345"
   end
 
-  it "should replace an object" do
+  it "replaces an object" do
     obj = {hair: "black", shoe_size: "medium", eye_color: ["hazel", "brown"], 
           name: "fredrick", meta: {version: 'v567'}, id: "id12345"}
     subject.set_request_handler do |url, method, body, headers|
@@ -62,7 +62,7 @@ describe Scim do
     result["id"].should == "id12345"
   end
 
-  it "should get an object" do
+  it "gets an object" do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :get
@@ -73,7 +73,7 @@ describe Scim do
     result['id'].should == "id12345"
   end
 
-  it "should page through all objects" do
+  it "pages through all objects" do
     subject.set_request_handler do |url, method, body, headers|
       url.should =~ %r{^#{@target}/Users\?attributes=id&startIndex=[12]$}
       method.should == :get
@@ -88,7 +88,7 @@ describe Scim do
     result[1]['id'].should == "id67890"
   end
 
-  it "should change a user's password" do
+  it "changes a user's password" do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345/password"
       method.should == :put
@@ -100,7 +100,7 @@ describe Scim do
     result['id'].should == "id12345"
   end
 
-  it "should change a client's secret" do
+  it "changes a client's secret" do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/oauth/clients/id12345/secret"
       method.should == :put

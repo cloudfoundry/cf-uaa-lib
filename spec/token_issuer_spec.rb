@@ -30,7 +30,7 @@ describe TokenIssuer do
 
   context "with client credentials grant" do
 
-    it "should get a token with client credentials" do
+    it "gets a token with client credentials" do
       subject.set_request_handler do |url, method, body, headers|
         headers["content-type"].should =~ /application\/x-www-form-urlencoded/
         headers["accept"].should =~ /application\/json/
@@ -48,7 +48,7 @@ describe TokenIssuer do
       token.info["expires_in"].should == 98765
     end
 
-    it "should get all granted scopes if none specified" do
+    it "gets all granted scopes if none specified" do
       subject.set_request_handler do |url, method, body, headers|
         reply = {access_token: "test_access_token", token_type: "BEARER", scope: "openid logs.read", expires_in: 98765}
         [200, Util.json(reply), {"content-type" => "application/json"}]
@@ -57,17 +57,17 @@ describe TokenIssuer do
       Util.arglist(token.info["scope"]).to_set.should == Util.arglist("openid logs.read").to_set
     end
 
-    it "should raise a bad response error if response content type is not json" do
+    it "raises a bad response error if response content type is not json" do
       subject.set_request_handler { [200, "not json", {"content-type" => "text/html"}] }
       expect {subject.client_credentials_grant}.to raise_exception BadResponse
     end
 
-    it "should raise a bad response error if the response is not proper json" do
+    it "raises a bad response error if the response is not proper json" do
       subject.set_request_handler { [200, "bad json", {"content-type" => "application/json"}] }
       expect {subject.client_credentials_grant}.to raise_exception BadResponse
     end
 
-    it "should raise a target error if the response is 400 with valid oauth json error" do
+    it "raises a target error if the response is 400 with valid oauth json error" do
       subject.set_request_handler { [400, '{"error":"invalid scope"}', {"content-type" => "application/json"}] }
       expect {subject.client_credentials_grant("bad.scope")}.to raise_exception TargetError
     end
@@ -76,7 +76,7 @@ describe TokenIssuer do
 
   context "with owner password grant" do
 
-    it "should get a token with owner password" do
+    it "gets a token with owner password" do
       subject.set_request_handler do |url, method, body, headers|
         headers["content-type"].should =~ /application\/x-www-form-urlencoded/
         headers["accept"].should =~ /application\/json/
@@ -98,7 +98,7 @@ describe TokenIssuer do
 
   context "with implicit grant" do
 
-    it "should be able to get the prompts for credentials used to authenticate implicit grant" do
+    it "gets the prompts for credentials used to authenticate implicit grant" do
       subject.set_request_handler do |url, method, body, headers|
         info = { prompts: {username: ["text", "Username"], password: ["password","Password"]} }
         [200, Util.json(info), {"content-type" => "application/json"}]
@@ -107,14 +107,14 @@ describe TokenIssuer do
       result.should_not be_empty
     end
 
-    it "should raise a bad target error if no prompts are received" do
+    it "raises a bad target error if no prompts are received" do
       subject.set_request_handler do |url, method, body, headers|
         [200, Util.json({}), {"content-type" => "application/json"}]
       end
       expect { subject.prompts }.to raise_exception BadResponse
     end
 
-    it "should get an access token" do
+    it "gets an access token" do
       subject.set_request_handler do |url, method, body, headers|
         headers["content-type"].should =~ /application\/x-www-form-urlencoded/
         headers["accept"].should =~ /application\/json/
@@ -134,7 +134,7 @@ describe TokenIssuer do
       token.info["expires_in"].should == 98765
     end
 
-    it "should reject an access token with wrong state" do
+    it "rejects an access token with wrong state" do
       subject.set_request_handler do |url, method, body, headers|
         location = "https://uaa.cloudfoundry.com/redirect/test_client#" +
             "access_token=test_access_token&token_type=bearer&" +
@@ -149,7 +149,7 @@ describe TokenIssuer do
 
   context "with auth code grant" do
 
-    it "should get the authcode uri to be sent to the user agent for an authcode" do
+    it "gets the authcode uri to be sent to the user agent for an authcode" do
       redir_uri = "http://call.back/uri_path"
       uri_parts = subject.authcode_uri(redir_uri).split('?')
       uri_parts[0].should == "http://test.uaa.target/oauth/authorize"
@@ -161,7 +161,7 @@ describe TokenIssuer do
       params["state"].should_not be_nil
     end
 
-    it "should get an access token with an authorization code" do
+    it "gets an access token with an authorization code" do
       subject.set_request_handler do |url, method, body, headers|
         headers["content-type"].should =~ /application\/x-www-form-urlencoded/
         headers["accept"].should =~ /application\/json/
