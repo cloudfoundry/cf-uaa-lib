@@ -20,7 +20,7 @@ Gem::Specification.new do |s|
   s.version     = CF::UAA::VERSION
   s.authors     = ["Dave Syer", "Dale Olds", "Joel D'sa", "Vidya Valmikinathan", "Luke Taylor"]
   s.email       = ["dsyer@vmware.com", "olds@vmware.com", "jdsa@vmware.com", "vidya@vmware.com", "ltaylor@vmware.com"]
-  s.homepage    = "https://github.com/cloudfoundry/cf-uaa-client"
+  s.homepage    = "https://github.com/cloudfoundry/cf-uaa-lib"
   s.summary     = %q{Client library for CloudFoundry UAA}
   s.description = %q{Client library for interacting with the CloudFoundry User Account and Authorization (UAA) server.  The UAA is an OAuth2 Authorization Server so it can be used by webapps and command line apps to obtain access tokens to act on behalf of users.  The tokens can then be used to access protected resources in a Resource Server.  This library is for use by UAA client applications or resource servers.}
 

@@ -24,7 +24,7 @@ describe Misc do
     #Util.default_logger(:trace)
   end
 
-  it "should get the server info" do
+  it "gets server info" do
     Misc.set_request_handler do |url, method, body, headers|
       url.should == "https://uaa.cloudfoundry.com/login"
       method.should == :get
@@ -36,18 +36,6 @@ describe Misc do
     result["prompts"].should_not be_nil
     result["commit_id"].should_not be_nil
   end
-#
-#  it "should get token_endpoint" do
-#    @stub_uaa.info[:token_endpoint] = te = "http://alternate/token/end/point"
-#    result = frequest { Misc.server(@stub_uaa.url) }
-#    result[:token_endpoint].should == te
-#  end
-#
-#  it "should get token validation key" do
-#    result = frequest { Misc.validation_key(@stub_uaa.url) }
-#    result[:alg].should_not be_nil
-#    result[:value].should_not be_nil
-#  end
 
 end
 

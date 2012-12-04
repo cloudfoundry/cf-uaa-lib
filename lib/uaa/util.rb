@@ -48,25 +48,23 @@ class Util
   # consistent case if not exactly case insensitive, and with '_' instead
   # of '-' for ruby convention. :todash reverses :undash (except for case).
   # :uncamel and :tocamel provide similar translations for camel-case keys.
-  # returns new key or nil if key should not change.
+  # returns new key
   def self.hash_key(k, style)
-    nk = case style
-      when :undash then k.to_s.downcase.tr('-', '_').to_sym
-      when :todash then k.to_s.downcase.tr('_', '-')
-      when :uncamel then k.to_s.downcase.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').to_sym
-      when :tocamel then k.to_s.gsub(/(_[a-z])([^_]*)/) { $1[1].upcase + $2 }
-      when :tosym then k.to_sym
-      when :tostr then k.to_s
-      when :down then k.to_s.downcase
-      when :none then k
-      else raise "unknown hash key style: #{style}"
+    case style
+    when :undash then k.to_s.downcase.tr('-', '_').to_sym
+    when :todash then k.to_s.downcase.tr('_', '-')
+    when :uncamel then k.to_s.downcase.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').to_sym
+    when :tocamel then k.to_s.gsub(/(_[a-z])([^_]*)/) { $1[1].upcase + $2 }
+    when :tosym then k.to_sym
+    when :tostr then k.to_s
+    when :down then k.to_s.downcase
+    when :none then k
+    else raise ArgumentError, "unknown hash key style: #{style}"
     end
-    nk unless nk == k
   end
 
-  # modifies obj in place changing any hash keys to style (see hash_key). Recursively
-  # modifies subordinate hashes.
-  # returns obj
+  # modifies obj in place changing any hash keys to style (see hash_key). 
+  # Recursively modifies subordinate hashes. Returns modified obj
   def self.hash_keys!(obj, style = :none)
     return obj if style == :none
     return obj.each {|o| hash_keys!(o, style)} if obj.is_a? Array
@@ -74,19 +72,31 @@ class Util
     newkeys, nk = {}, nil
     obj.delete_if { |k, v| 
       hash_keys!(v, style)
-      newkeys[nk] = v if nk = hash_key(k, style)
-      nk 
+      newkeys[nk] = v unless (nk = hash_key(k, style)) == k
+      nk != k
     }
     obj.merge!(newkeys)
+  end
+ 
+  # makes a new copy of obj with hash keys to style (see hash_key). 
+  # Recursively modifies subordinate hashes. Returns modified obj
+  def self.hash_keys(obj, style = :none)
+    return obj.collect {|o| hash_keys(o, style)} if obj.is_a? Array
+    return obj unless obj.is_a? Hash
+    obj.each_with_object({}) {|(k, v), h| 
+      h[hash_key(k, style)] = hash_keys(v, style) 
+    }
   end
 
   # Takes an x-www-form-urlencoded string and returns a hash of key value pairs.
   # Useful for OAuth parameters. It raises an ArgumentError if a key occurs
   # more than once, which is a restriction of OAuth query strings.
+  # OAuth parameters are case sensitive, scim parameters are case-insensitive
   # See ietf rfc 6749 section 3.1.
-  def self.decode_form_to_hash(url_encoded_pairs)
+  def self.decode_form_to_hash(url_encoded_pairs, style = :none)
     URI.decode_www_form(url_encoded_pairs).each_with_object({}) do |p, o|
-      raise ArgumentError, "duplicate keys in form parameters" if o[k = p[0]]
+      k = hash_key(p[0], style)
+      raise ArgumentError, "duplicate keys in form parameters" if o[k]
       o[k] = p[1]
     end
   rescue Exception => e
@@ -131,7 +141,7 @@ class Util
 
   # reverse of arglist, puts arrays of strings into a single, space-delimited string
   def self.strlist(arg, delim = ' ')
-    arg.respond_to?(:join) ? arg.join(delim) : arg.to_s
+    arg.respond_to?(:join) ? arg.join(delim) : arg.to_s if arg
   end
 
   def self.default_logger(level = nil, sink = nil)

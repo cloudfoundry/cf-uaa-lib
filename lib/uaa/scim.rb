@@ -78,6 +78,10 @@ class Scim
   def add(type, info)
     path, info = prep_request(type, info)
     reply = json_parse_reply(*json_post(@target, path, info, @auth_header), :down)
+
+    # hide client endpoints that are not scim compatible
+    reply['id'] = reply['client_id'] if type == :client && reply['client_id'] && !reply['id']
+
     return reply if reply && reply["id"]
     raise BadResponse, "no id returned by add request to #{@target}#{path}"
   end
@@ -94,8 +98,11 @@ class Scim
     raise ArgumentError, "scim info must include #{ida}" unless id = info[ida]
     hdrs = info && info["meta"] && info["meta"]["version"] ? 
         {'if-match' => info["meta"]["version"]} : {}
-    json_parse_reply(*json_put(@target, "#{path}/#{URI.encode(id)}", info,
-        @auth_header, hdrs), :down)
+    reply = json_parse_reply(*json_put(@target, "#{path}/#{URI.encode(id)}", 
+        info, @auth_header, hdrs), :down)
+    
+    # hide client endpoints that are not scim compatible
+    type == :client && !reply ? get(type, info["client_id"]): reply
   end
 
   # TODO: fix this when the UAA supports patch
@@ -116,6 +123,10 @@ class Scim
     qstr = query.empty?? '': "?#{URI.encode_www_form(query)}"
     info = json_get(@target, "#{path}#{qstr}", @auth_header, :down)
     unless info.is_a?(Hash) && info['resources'].is_a?(Array)
+
+      # hide client endpoints that are not scim compatible
+      return {'resources' => info.values } if type == :client && info.is_a?(Hash)
+
       raise BadResponse, "invalid reply to query of #{@target}#{path}"
     end
     info
@@ -123,27 +134,22 @@ class Scim
 
   def get(type, id) 
     path, _ = prep_request(type)
-    json_get(@target, "#{path}/#{URI.encode(id)}", @auth_header, :down)
+    info = json_get(@target, "#{path}/#{URI.encode(id)}", @auth_header, :down)
+
+    # hide client endpoints that are not scim compatible
+    info["id"] = info["client_id"] if type == :client && !info["id"]
+    info
   end
 
-  # convenience method, queries for object by name. returns its id.
-  def id(type, name)
-    info = query(type, filter: "#{type_info(type, :name_attr)} eq \"#{name}\"")
-    unless info && info["resources"] && info["resources"].length == 1 &&
-        info["resources"][0] && (id = info["resources"][0]["id"])
-      raise NotFound, "#{name} not found in #{@target}#{type_info(type, :path)}"
-    end
-    id
-  end
-
-  # collects all pages of entries from a query, returns array of results.
+  # Collects all pages of entries from a query, returns array of results.
   # Type can be any scim resource type
   def all_pages(type, query = {})
     query = query.reject {|k, v| v.nil? }
     query["startindex"], info = 1, []
     while true
       qinfo = query(type, query)
-      return info unless qinfo["resources"] && !qinfo["resources"].empty?
+      raise BadResponse unless qinfo["resources"]
+      return info if qinfo["resources"].empty?
       info.concat(qinfo["resources"])
       return info unless qinfo["totalresults"] && qinfo["totalresults"] > info.length
       unless qinfo["startindex"] && qinfo["itemsperpage"]
@@ -151,6 +157,34 @@ class Scim
       end
       query["startindex"] = info.length + 1
     end
+  end
+
+  # Queries for objects by name. returns array of name/id hashes for each
+  # name found.
+  def ids(type, *names)
+    na = type_info(type, :name_attr)
+    filter = names.each_with_object([]) { |n, o| o << "#{na} eq \"#{n}\""}
+    all_pages(type, attributes: "id,#{na}", filter: filter.join(" or "))
+  end
+
+  # Convenience method to query for single object by name. 
+  # Returns its id. Raises error if not found.
+  def id(type, name)
+    res = ids(type, name)
+
+    # hide client endpoints that are not scim compatible
+    if type == :client && res && res.length > 0
+      if res.length > 1 || res[0]["id"].nil?
+        cr = res.find { |o| o['client_id'] && name.casecmp(o['client_id']) == 0 }
+        return cr['id'] || cr['client_id'] if cr
+      end
+    end
+
+    unless res && res.is_a?(Array) && res.length == 1 &&
+        res[0].is_a?(Hash) && (id = res[0]["id"])
+      raise NotFound, "#{name} not found in #{@target}#{type_info(type, :path)}"
+    end
+    id
   end
 
   def change_password(user_id, new_password, old_password = nil)
@@ -168,3 +202,4 @@ class Scim
 end
 
 end
+
