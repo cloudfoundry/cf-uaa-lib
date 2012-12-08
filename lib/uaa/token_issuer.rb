@@ -11,51 +11,74 @@
 # subcomponent's license, as noted in the LICENSE file.
 #++
 
-# Web or Native Clients (in the OAuth2 sense) would use this class to get tokens
-# that they can use to get access to resources
-
-# Client Apps that want to get access on behalf of their users to
-# resource servers need to get tokens via authcode and implicit flows,
-# request scopes, etc., but they don't need to process tokens. This
-# class is for these use cases.
-
 require 'securerandom'
 require 'uaa/http'
 
 module CF::UAA
 
-# The Token class holds access and refresh tokens as well as token meta-data
-# such as token type and expiration time. The info hash MUST include 
-# access_token, token_type and scope (if granted scope differs from requested 
-# scope). It should include expires_in. It may include refresh_token, scope, 
-# and other values from the auth server.
+# The Token class is returned by various TokenIssuer methods. It holds access
+# and refresh tokens as well as token meta-data such as token type and
+# expiration time. See Token#info for contents.
 class Token
+
+  # Returns a hash of information about the current token. The info hash MUST include
+  # access_token, token_type and scope (if granted scope differs from requested
+  # scope). It should include expires_in. It may include refresh_token, scope,
+  # and other values from the auth server.
   attr_reader :info
-  def initialize(info); @info = info end
+
+  def initialize(info) # :nodoc:
+    @info = info
+  end
+
+  # Returns a string for use in an authorization header that is constructed
+  # from contents of the Token. Typically a string such as "bearer xxxx.xxxx.xxxx".
   def auth_header; "#{info['token_type']} #{info['access_token']}" end
 end
 
+# Client Apps that want to get access to resource servers on behalf of their
+# users need to get tokens via authcode and implicit flows,
+# request scopes, etc., but they don't need to process tokens. This
+# class is for these use cases.
+#
+# In general most of this class is an implementation of the client pieces of
+# the OAuth2 protocol. See http://tools.ietf.org/html/rfc6749
 class TokenIssuer
 
   include Http
 
+  # parameters:
+  # [+target+] The base URL of a UAA's oauth authorize endpoint. For example
+  #            the target would be \https://login.cloudfoundry.com if the
+  #            endpoint is \https://login.cloudfoundry.com/oauth/authorize.
+  #            The target would be \http://localhost:8080/uaa if the endpoint
+  #            is \http://localhost:8080/uaa/oauth/authorize.
+  # [+client_id+] The oauth2 client id. See http://tools.ietf.org/html/rfc6749#section-2.2
+  # [+client_secret+] needed to authenticate the client for all grant types
+  #                   except implicit.
+  # [+token_target+] The base URL of the oauth token endpoint. If not specified,
+  #                  +target+ is used.
   def initialize(target, client_id, client_secret = nil, token_target = nil)
     @target, @client_id, @client_secret = target, client_id, client_secret
     @token_target = token_target || target
   end
 
-  # login prompts for use by app to collect credentials for implicit grant
+  # Allows an app to discover what credentials are required for
+  # #implicit_grant_with_creds. Returns a hash of credential names with type
+  # and suggested prompt value, e.g.
+  #   {"username":["text","Email"],"password":["password","Password"]}
   def prompts
     reply = json_get @target, '/login'
     return reply['prompts'] if reply && reply['prompts']
     raise BadResponse, "No prompts in response from target #{@target}"
   end
 
-  # gets an access token in a single call to the UAA with the client
-  # credentials used for authentication. The credentials arg should
+  # Gets an access token in a single call to the UAA with the user
+  # credentials used for authentication. The +credentials+ should
   # be an object such as a hash that can be converted to a json
   # representation of the credential name/value pairs
-  # as specified by the information retrieved by #prompts
+  # corresponding to the keys retrieved by #prompts.
+  # Returns a Token.
   def implicit_grant_with_creds(credentials, scope = nil)
     # this manufactured redirect_uri is a convention here, not part of OAuth2
     redir_uri = "https://uaa.cloudfoundry.com/redirect/#{@client_id}"
@@ -74,22 +97,43 @@ class TokenIssuer
     raise BadResponse, "bad location header in reply: #{e.message}"
   end
 
-  # constructs a uri that the client is to return to the browser to direct
-  # the user to the authorization server to get an authcode. The redirect_uri
+  # Constructs a uri that the client is to return to the browser to direct
+  # the user to the authorization server to get an authcode. The +redirect_uri+
   # is embedded in the returned uri so the authorization server can redirect
   # the user back to the client app.
   def implicit_uri(redirect_uri, scope = nil)
     @target + authorize_path_args("token", redirect_uri, scope)
   end
 
-  def implicit_grant(implicit_uri, callback_query)
+  # Gets a token via an implicit grant.
+  # [+authcode_uri+] must be from a previous call to #implicit_uri and contains
+  #                  state used to validate the contents of the reply from the
+  #                  Authorization Server.
+  # [+callback_fragment+] must be the fragment portion of the URL received by
+  #                       user's browser after the Authorization Server
+  #                       redirects back to the +redirect_uri+ that was given to
+  #                       #implicit_uri. How the application get's the contents
+  #                       of the fragment is application specific -- usually
+  #                       some javascript in the page at the +redirect_uri+.
+  #
+  # See http://tools.ietf.org/html/rfc6749#section-4.2 .
+  #
+  # Returns a Token.
+  def implicit_grant(implicit_uri, callback_fragment)
     in_params = Util.decode_form_to_hash(URI.parse(implicit_uri).query)
     unless in_params['state'] && in_params['redirect_uri']
       raise ArgumentError, "redirect must happen before implicit grant"
     end
-    parse_implicit_params callback_query, in_params['state']
+    parse_implicit_params callback_fragment, in_params['state']
   end
 
+  # A UAA extension to OAuth2 that allows a client to pre-authenticate a
+  # user at the start of an authorization code flow. By passing in the
+  # user's credentials (see #prompts) the Authorization Server can establish
+  # a session with the user's browser without reprompting for authentication.
+  # This is useful for user account management apps so that they can create
+  # a user account, or reset a password for the user, without requiring the
+  # user to type in their credentials again.
   def autologin_uri(redirect_uri, credentials, scope = nil)
     headers = {'content_type' => 'application/x-www-form-urlencoded', 'accept' => 'application/json',
         'authorization' => Http.basic_auth(@client_id, @client_secret) }
@@ -99,7 +143,7 @@ class TokenIssuer
     @target + authorize_path_args('code', redirect_uri, scope, SecureRandom.uuid, code: reply[:code])
   end
 
-  # constructs a uri that the client is to return to the browser to direct
+  # Constructs a uri that the client is to return to the browser to direct
   # the user to the authorization server to get an authcode. The redirect_uri
   # is embedded in the returned uri so the authorization server can redirect
   # the user back to the client app.
@@ -107,6 +151,19 @@ class TokenIssuer
     @target + authorize_path_args('code', redirect_uri, scope)
   end
 
+  # Uses the instance client credentials in addition to +callback_query+
+  # to get a token via the authorization code grant.
+  # [+authcode_uri+] must be from a previous call to #authcode_uri and contains
+  #                  state used to validate the contents of the reply from the
+  #                  Authorization Server.
+  # [callback_query] must be the query portion of the URL received by the
+  #                  client after the user's browser is redirected back from
+  #                  the Authorization server. It contains the authorization
+  #                  code.
+  #
+  # See http://tools.ietf.org/html/rfc6749#section-4.1 .
+  #
+  # Returns a Token.
   def authcode_grant(authcode_uri, callback_query)
     ac_params = Util.decode_form_to_hash(URI.parse(authcode_uri).query)
     unless ac_params['state'] && ac_params['redirect_uri']
@@ -122,14 +179,24 @@ class TokenIssuer
     request_token('grant_type' => 'authorization_code', 'code' => authcode, 'redirect_uri' => ac_params['redirect_uri'])
   end
 
+  # Uses the instance client credentials in addition to the +username+
+  # and +password+ to get a token via the owner password grant.
+  # See http://tools.ietf.org/html/rfc6749#section-4.3 .
+  # Returns a Token.
   def owner_password_grant(username, password, scope = nil)
     request_token('grant_type' => 'password', 'username' => username, 'password' => password, 'scope' => scope)
   end
 
+  # Uses the instance client credentials to get a token with a client
+  # credentials grant. See http://tools.ietf.org/html/rfc6749#section-4.4
+  # Returns a Token.
   def client_credentials_grant(scope = nil)
     request_token('grant_type' => 'client_credentials', 'scope' => scope)
   end
 
+  # Uses the instance client credentials and the given +refresh_token+ to get
+  # a new access token. See http://tools.ietf.org/html/rfc6749#section-6
+  # Returns a Token, which may include a new refresh token as well as an access token.
   def refresh_token_grant(refresh_token, scope = nil)
     request_token('grant_type' => 'refresh_token', 'refresh_token' => refresh_token, 'scope' => scope)
   end

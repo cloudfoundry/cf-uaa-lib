@@ -18,7 +18,7 @@ require 'uri'
 
 # :nodoc:
 module CF
-  # Namespace for Cloudfoundry UAA 
+  # Namespace for Cloudfoundry User Account and Authentication service Ruby APIs
   module UAA end
 end
 
@@ -30,30 +30,40 @@ end
 
 module CF::UAA
 
-# all CF::UAA exceptions are derived from UAAError
+# Useful parent class. All CF::UAA exceptions are derived from this.
 class UAAError < RuntimeError; end
 
-# Authentication error
+# Indicates an authentication error
 class AuthError < UAAError; end
 
-# error for decoding tokens, base64 encoding, or json
+# Indicates an error occurred decoding a token, base64 decoding, or JSON
 class DecodeError < UAAError; end
 
-# low level helper functions useful to the UAA client APIs
+# Low level helper functions useful to the UAA client APIs
 class Util
 
-  # http headers and various protocol tags tend to contain '-' characters,
+  # HTTP headers and various protocol tags tend to contain '-' characters,
   # are intended to be case-insensitive, and often end up as keys in ruby
-  # hashes. The :undash style converts to lowercase for at least
-  # consistent case if not exactly case insensitive, and with '_' instead
-  # of '-' for ruby convention. :todash reverses :undash (except for case).
-  # :uncamel and :tocamel provide similar translations for camel-case keys.
+  # hashes. SCIM[http://www.simplecloud.info/] specifies that attribute
+  # names are case-insensitive and this code downcases such strings using
+  # this method.
+  #
+  # The various +styles+ convert +key+ as follows:
+  # [+:undash+] to lowercase, '-' to  '_', and to a symbol
+  # [+:todash+] to string, '_' to '-'
+  # [+:uncamel+] uppercase to underscore-lowercase, to symbol
+  # [+:tocamel+] reverse of +uncamel+
+  # [+:tosym+] to symbol
+  # [+:tostr+] to string
+  # [+:down+] to lowercase
+  # [+:none+] leave the damn key alone
+  #
   # returns new key
   def self.hash_key(k, style)
     case style
     when :undash then k.to_s.downcase.tr('-', '_').to_sym
     when :todash then k.to_s.downcase.tr('_', '-')
-    when :uncamel then k.to_s.downcase.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').to_sym
+    when :uncamel then k.to_s.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').downcase.to_sym
     when :tocamel then k.to_s.gsub(/(_[a-z])([^_]*)/) { $1[1].upcase + $2 }
     when :tosym then k.to_sym
     when :tostr then k.to_s
@@ -63,28 +73,28 @@ class Util
     end
   end
 
-  # modifies obj in place changing any hash keys to style (see hash_key). 
+  # Modifies obj in place changing any hash keys to style (see hash_key).
   # Recursively modifies subordinate hashes. Returns modified obj
   def self.hash_keys!(obj, style = :none)
     return obj if style == :none
     return obj.each {|o| hash_keys!(o, style)} if obj.is_a? Array
     return obj unless obj.is_a? Hash
     newkeys, nk = {}, nil
-    obj.delete_if { |k, v| 
+    obj.delete_if { |k, v|
       hash_keys!(v, style)
       newkeys[nk] = v unless (nk = hash_key(k, style)) == k
       nk != k
     }
     obj.merge!(newkeys)
   end
- 
-  # makes a new copy of obj with hash keys to style (see hash_key). 
+
+  # Makes a new copy of obj with hash keys to style (see hash_key).
   # Recursively modifies subordinate hashes. Returns modified obj
   def self.hash_keys(obj, style = :none)
     return obj.collect {|o| hash_keys(o, style)} if obj.is_a? Array
     return obj unless obj.is_a? Hash
-    obj.each_with_object({}) {|(k, v), h| 
-      h[hash_key(k, style)] = hash_keys(v, style) 
+    obj.each_with_object({}) {|(k, v), h|
+      h[hash_key(k, style)] = hash_keys(v, style)
     }
   end
 
@@ -103,10 +113,22 @@ class Util
     raise ArgumentError, e.message
   end
 
+  # Converts +obj+ to JSON
   def self.json(obj) MultiJson.dump(obj) end
+
+  # Converts +obj+ to nicely formatted JSON
+  def self.json_pretty(obj) MultiJson.dump(obj, pretty: true) end
+
+  # Converts +obj+ to a URL-safe base 64 encoded string
   def self.json_encode64(obj = {}) encode64(json(obj)) end
+
+  # Converts +str+ from base64 encoding of a JSON string to a (returned) hash.
   def self.json_decode64(str) json_parse(decode64(str)) end
+
+  # encodes +obj+ as a URL-safe base 64 encoded string, with trailing padding removed.
   def self.encode64(obj) Base64::urlsafe_encode64(obj).gsub(/=*$/, '') end
+
+  # adds proper padding to a URL-safe base 64 encoded string, and then returns the decoded string.
   def self.decode64(str)
     return unless str
     pad = str.length % 4
@@ -116,20 +138,22 @@ class Util
     raise DecodeError, "invalid base64 encoding"
   end
 
+  # Parses a JSON string into the returned hash. For possible values of +style+
+  # see #hask_key
   def self.json_parse(str, style = :none)
     hash_keys!(MultiJson.load(str), style) if str && !str.empty?
   rescue MultiJson::DecodeError
     raise DecodeError, "json decoding error"
   end
 
-  def self.truncate(obj, limit = 50)
+  def self.truncate(obj, limit = 50) # :nodoc:
     return obj.to_s if limit == 0
     limit = limit < 5 ? 1 : limit - 4
     str = obj.to_s[0..limit]
     str.length > limit ? str + '...': str
   end
 
-  # many parameters in these classes can be given as arrays, or as a list of
+  # Many parameters in these classes can be given as arrays, or as a list of
   # arguments separated by spaces or commas. This method handles the possible
   # inputs and returns an array of arguments.
   def self.arglist(arg, default_arg = nil)
@@ -139,11 +163,12 @@ class Util
     arg.split(/[\s\,]+/).reject { |e| e.empty? }
   end
 
-  # reverse of arglist, puts arrays of strings into a single, space-delimited string
+  # Reverse of arglist, puts arrays of strings into a single, space-delimited string
   def self.strlist(arg, delim = ' ')
     arg.respond_to?(:join) ? arg.join(delim) : arg.to_s if arg
   end
 
+  # Set the default logger used by the higher level classes.
   def self.default_logger(level = nil, sink = nil)
     if sink || !@default_logger
       @default_logger = Logger.new(sink || $stdout)

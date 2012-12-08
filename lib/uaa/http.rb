@@ -17,11 +17,22 @@ require 'uaa/util'
 
 module CF::UAA
 
+# Indicates URL for the target is bad or not accessible
 class BadTarget < UAAError; end
+
+# Error indicating the resource within the target server was not found
 class NotFound < UAAError; end
+
+# Indicates a syntax error in a response from the UAA, e.g. missing required response field.
 class BadResponse < UAAError; end
+
+# Indicates a token is malformed or expired
 class InvalidToken < UAAError; end
+
+# Indicates an error from the http client stack
 class HTTPException < UAAError; end
+
+# An application level error from the UAA which includes error info in the reply.
 class TargetError < UAAError
   attr_reader :info
   def initialize(error_info = {})
@@ -32,24 +43,34 @@ end
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
 
+  # Sets the current logger instance to recieve error messages
   def logger=(logr); @logger = logr end
+
+  # Returns the current logger or CF::UAA::Util.default_logger is none has been set.
   def logger ; @logger ||= Util.default_logger end
+
+  # Returns true if the current logger is set to +:trace+ level
   def trace? ; @logger && @logger.respond_to?(:trace?) && @logger.trace? end
 
-  # sets handler for outgoing http requests. If not set, net/http is used. :yields: url, method, body, headers
+  # Sets handler for outgoing http requests. If not set, an internal cache of
+  # net/http connections is used.
+  # Arguments to handler are url, method, body, headers.
   def set_request_handler(&blk) @req_handler = blk end
 
+  # Returns a string for use in an http basic authentication header
   def self.basic_auth(name, password)
     "Basic " + Base64::strict_encode64("#{name}:#{password}")
   end
 
-  def add_auth_json(auth, headers, jsonhdr = "content-type") # :nodoc:
+  private
+
+  def add_auth_json(auth, headers, jsonhdr = "content-type")
     headers["authorization"] = auth if auth
     headers.merge!(jsonhdr => "application/json")
   end
 
   def json_get(target, path = nil, authorization = nil, key_style = :none, headers = {})
-    json_parse_reply(*http_get(target, path, 
+    json_parse_reply(*http_get(target, path,
         add_auth_json(authorization, headers, "accept")), key_style)
   end
 
@@ -61,15 +82,11 @@ module Http
     http_put(target, path, Util.json(body), add_auth_json(authorization, headers))
   end
 
-  def json_patch(target, path, body, authorization = nil, headers = {})
-    http_patch(target, path, Util.json(body), add_auth_json(authorization, headers))
-  end
-
   def json_parse_reply(status, body, headers, key_style = :none)
     unless [200, 201, 204, 400, 401, 403].include? status
       raise (status == 404 ? NotFound : BadResponse), "invalid status response: #{status}"
     end
-    if body && !body.empty? && (status == 204 || headers.nil? || 
+    if body && !body.empty? && (status == 204 || headers.nil? ||
           headers["content-type"] !~ /application\/json/i)
       raise BadResponse, "received invalid response content or type"
     end
@@ -86,7 +103,6 @@ module Http
   def http_get(target, path = nil, headers = {}) request(target, :get, path, nil, headers) end
   def http_post(target, path, body, headers = {}) request(target, :post, path, body, headers) end
   def http_put(target, path, body, headers = {}) request(target, :put, path, body, headers) end
-  def http_patch(target, path, body, headers = {}) request(target, :patch, path, body, headers) end
 
   def http_delete(target, path, authorization)
     status = request(target, :delete, path, nil, "authorization" => authorization)[0]
@@ -95,15 +111,13 @@ module Http
     end
   end
 
-  private
-
   def request(target, method, path, body = nil, headers = {})
     headers["accept"] = headers["content-type"] if headers["content-type"] && !headers["accept"]
     url = "#{target}#{path}"
 
     logger.debug { "--->\nrequest: #{method} #{url}\n" +
         "headers: #{headers}\n#{'body: ' + Util.truncate(body.to_s, trace? ? 50000 : 50) if body}" }
-    status, body, headers = @req_handler ? @req_handler.call(url, method, body, headers) : 
+    status, body, headers = @req_handler ? @req_handler.call(url, method, body, headers) :
         net_http_request(url, method, body, headers)
     logger.debug { "<---\nresponse: #{status}\nheaders: #{headers}\n" +
         "#{'body: ' + Util.truncate(body.to_s, trace? ? 50000: 50) if body}" }
@@ -117,7 +131,7 @@ module Http
   end
 
   def net_http_request(url, method, body, headers)
-    raise ArgumentError unless reqtype = {delete: Net::HTTP::Delete, 
+    raise ArgumentError unless reqtype = {delete: Net::HTTP::Delete,
         get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put}[method]
     headers["content-length"] = body.length if body
     uri = URI.parse(url)

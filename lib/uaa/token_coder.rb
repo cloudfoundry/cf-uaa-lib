@@ -19,20 +19,23 @@ module CF::UAA
 # This class is for OAuth Resource Servers.
 # Resource Servers get tokens and need to validate and decode them,
 # but they do not obtain them from the Authorization Server. This
-# class it for Resource Servers which accept Bearer JWT tokens.  An
-# instance of this class can be used to decode and verify the contents
-# of a bearer token.  The Authorization Server will have signed the
-# token and shared a secret key so that the Resource Server can verify
-# the signature.  The Authorization Server may also have given the
-# Resource Server an id, in which case it must verify a matching value
-# is in the access token.
+# class is for resource servers which accept bearer JWT tokens.
+#
+# For more on JWT, see the JSON Web \Token RFC here:
+# http://tools.ietf.org/id/draft-ietf-oauth-json-web-token-05.html
+#
+# An instance of this class can be used to decode and verify the contents
+# of a bearer token. Methods of this class can validate token signatures
+# with a secret or public key, and they can also enforce that the token
+# is for a particular audience.
 class TokenCoder
 
   def self.init_digest(algo) # :nodoc:
     OpenSSL::Digest::Digest.new(algo.sub('HS', 'sha').sub('RS', 'sha'))
   end
 
-  # takes a token_body (the middle section of the jwt) and returns a signed token
+  # Takes a +token_body+ (the middle section of the JWT) and returns a signed
+  # token string.
   def self.encode(token_body, skey, pkey = nil, algo = 'HS256')
     segments = [Util.json_encode64("typ" => "JWT", "alg" => algo)]
     segments << Util.json_encode64(token_body)
@@ -49,6 +52,11 @@ class TokenCoder
     segments.join('.')
   end
 
+  # Decodes a +token+ and optionally verifies the signature. Both a secret key
+  # and a public key can be provided for signature verification. The JWT
+  # +token+ header indicates what signature algorithm was used and the
+  # corresponding key is used to verify the signature (if +verify+ is true).
+  # Returns a hash of the token contents or raises +DecodeError+.
   def self.decode(token, skey = nil, pkey = nil, verify = true)
     pkey = OpenSSL::PKey::RSA.new(pkey) unless pkey.nil? || pkey.is_a?(OpenSSL::PKey::PKey)
     segments = token.split('.')
@@ -71,18 +79,17 @@ class TokenCoder
     payload
   end
 
-  # Create a new token en/decoder for a service that is associated with
+  # Creates a new token en/decoder for a service that is associated with
   # the the audience_ids, the symmetrical token validation key, and the
   # public and/or private keys. Parameters:
-  # * audience_ids - an array or space separated strings and should
-  #   indicate values which indicate the token is intended for this service
-  #   instance. It will be compared with tokens as they are decoded to
-  #   ensure that the token was intended for this audience.
-  # * skey - is used to sign and validate tokens using symetrical key
-  #   algoruthms
-  # * pkey - pkey may be a string or File which includes public and
-  #   optionally private key data in PEM or DER formats. The private key
-  #   is used to sign tokens and the public key is used to validate tokens.
+  # +audience_ids+:: an array or space separated strings. Should
+  #                  indicate values which indicate the token is intended for this service
+  #                  instance. It will be compared with tokens as they are decoded to
+  #                  ensure that the token was intended for this audience.
+  # +skey+:: is used to sign and validate tokens using symetrical key algoruthms
+  # +pkey+:: may be a string or File which includes public and
+  #          optionally private key data in PEM or DER formats. The private key
+  #          is used to sign tokens and the public key is used to validate tokens.
   def initialize(audience_ids, skey, pkey = nil)
     @audience_ids, @skey, @pkey = Util.arglist(audience_ids), skey, pkey
     @pkey = OpenSSL::PKey::RSA.new(pkey) unless pkey.nil? || pkey.is_a?(OpenSSL::PKey::PKey)
@@ -100,9 +107,9 @@ class TokenCoder
   end
 
   # Returns hash of values decoded from the token contents. If the
-  # token contains resource ids and they do not contain the id of the
-  # caller there will be an AuthError. If the token has expired there
-  # will also be an AuthError.
+  # token contains audience ids in the +aud+ field and they do not contain one
+  # or more of the +audience_ids+ in this instance, an AuthError will be raised.
+  # AuthError is raised if the token has expired.
   def decode(auth_header)
     unless auth_header && (tkn = auth_header.split).length == 2 && tkn[0] =~ /^bearer$/i
       raise DecodeError, "invalid authentication header: #{auth_header}"

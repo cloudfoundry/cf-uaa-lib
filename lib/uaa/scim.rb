@@ -15,8 +15,11 @@ require 'uaa/http'
 
 module CF::UAA
 
-# This class is for apps that need to manage User Accounts, Groups, or OAuth Client Registrations.
-# It provides access to the SCIM endpoints on the UAA.
+# This class is for apps that need to manage User Accounts, Groups, or OAuth
+# Client Registrations. It provides access to the SCIM endpoints on the UAA.
+# For more information about SCIM -- the IETF's System for Cross-domain
+# Identity Management (formerly known as Simple Cloud Identity Management) --
+# see http://www.simplecloud.info
 class Scim
 
   include Http
@@ -25,9 +28,9 @@ class Scim
 
   def force_attr(k)
     kd = k.to_s.downcase
-    kc = {"username" => "userName", "familyname" => "familyName", 
-      "givenname" => "givenName", "middlename" => "middleName", 
-      "honorificprefix" => "honorificPrefix", 
+    kc = {"username" => "userName", "familyname" => "familyName",
+      "givenname" => "givenName", "middlename" => "middleName",
+      "honorificprefix" => "honorificPrefix",
       "honorificsuffix" => "honorificSuffix", "displayname" => "displayName",
       "nickname" => "nickName", "profileurl" => "profileUrl",
       "streetaddress" => "streetAddress", "postalcode" => "postalCode",
@@ -62,19 +65,23 @@ class Scim
     ary[elem == :path ? 0 : 1]
   end
 
-  def prep_request(type, info = nil) 
-    [type_info(type, :path), force_case(info)] 
+  def prep_request(type, info = nil)
+    [type_info(type, :path), force_case(info)]
   end
 
   public
 
-  # the auth_header parameter refers to a string that can be used in an
-  # authorization header. For oauth with jwt tokens this would be something
-  # like "bearer xxxx.xxxx.xxxx". The Token class returned by TokenIssuer
-  # provides an auth_header method for this purpose.
+  # The +auth_header+ parameter refers to a string that can be used in an
+  # authorization header. For OAuth2 with JWT tokens this would be something
+  # like "bearer xxxx.xxxx.xxxx". The Token class provides
+  # CF::UAA::Token#auth_header for this purpose.
   def initialize(target, auth_header) @target, @auth_header = target, auth_header end
 
-  # info is a hash structure converted to json and sent to the scim /Users endpoint
+  # creates a SCIM resource. For possible values for the +type+ parameter, and links
+  # to the schema of each type see #query
+  # info is a hash structure converted to json and sent to the scim endpoint
+  # A hash of the newly created object is returned, including its ID
+  # and meta data.
   def add(type, info)
     path, info = prep_request(type, info)
     reply = json_parse_reply(*json_post(@target, path, info, @auth_header), :down)
@@ -86,34 +93,45 @@ class Scim
     raise BadResponse, "no id returned by add request to #{@target}#{path}"
   end
 
-  def delete(type, id) 
+  # Deletes a SCIM resource identified by +id+. For possible values for type, see #query
+  def delete(type, id)
     path, _ = prep_request(type)
     http_delete @target, "#{path}/#{URI.encode(id)}", @auth_header
   end
 
-    # info is a hash structure converted to json and sent to the scim /Users endpoint
+  # +info+ is a hash structure converted to json and sent to a scim endpoint
+  # For possible types, see #query
   def put(type, info)
     path, info = prep_request(type, info)
     ida = type == :client ? 'client_id' : 'id'
     raise ArgumentError, "scim info must include #{ida}" unless id = info[ida]
-    hdrs = info && info["meta"] && info["meta"]["version"] ? 
+    hdrs = info && info["meta"] && info["meta"]["version"] ?
         {'if-match' => info["meta"]["version"]} : {}
-    reply = json_parse_reply(*json_put(@target, "#{path}/#{URI.encode(id)}", 
+    reply = json_parse_reply(*json_put(@target, "#{path}/#{URI.encode(id)}",
         info, @auth_header, hdrs), :down)
 
     # hide client endpoints that are not scim compatible
     type == :client && !reply ? get(type, info["client_id"]): reply
   end
 
-  # TODO: fix this when the UAA supports patch
-  # info is a hash structure converted to json and sent to the scim /Users endpoint
-  #def patch(path, id, info, attributes_to_delete = nil)
-  #  info = info.merge(meta: { attributes: Util.arglist(attributes_to_delete) }) if attributes_to_delete
-  #  json_parse_reply(*json_patch(@target, "#{path}/#{URI.encode(id)}", info, @auth_header))
-  #end
-
-  # supported query keys are: attributes, filter, startIndex, count
-  # output hash keys are: resources, totalResults, itemsPerPage
+  # Queries for objects and returns a selected list of attributes for each
+  # a given filter. Possible values for +type+ and links to the schema of
+  # corresponding object type are:
+  # +:user+::   http://www.simplecloud.info/specs/draft-scim-core-schema-01.html#user-resource
+  # ::          http://www.simplecloud.info/specs/draft-scim-core-schema-01.html#anchor8
+  # +:group+::  http://www.simplecloud.info/specs/draft-scim-core-schema-01.html#group-resource
+  # ::          http://www.simplecloud.info/specs/draft-scim-core-schema-01.html#anchor10
+  # +:client+::
+  # +:user_id+:: https://github.com/cloudfoundry/uaa/blob/master/docs/UAA-APIs.rst#converting-userids-to-names
+  #
+  # The +query+ hash may contain the following keys:
+  # attributes:: a comma or space separated list of attribute names to be
+  #              returned for each object that matches the filter. If no attribute
+  #              list is given, all attributes are returned.
+  # filter:: a filter to select which objects are returned. See
+  #          http://www.simplecloud.info/specs/draft-scim-api-01.html#query-resources
+  # startIndex:: for paged output, start index of requested result set.
+  # count:: maximum number of results per reply
   def query(type, query = {})
     path, query = prep_request(type, query)
     query = query.reject {|k, v| v.nil? }
@@ -133,7 +151,10 @@ class Scim
     info
   end
 
-  def get(type, id) 
+  # Returns a hash of information about a specific object.
+  # [type] For possible values of type, see #add
+  # [id] the id attribute of the object assigned by the UAA
+  def get(type, id)
     path, _ = prep_request(type)
     info = json_get(@target, "#{path}/#{URI.encode(id)}", @auth_header, :down)
 
@@ -143,7 +164,7 @@ class Scim
   end
 
   # Collects all pages of entries from a query, returns array of results.
-  # Type can be any scim resource type
+  # For descriptions of the +type+ and +query+ parameters, see #query.
   def all_pages(type, query = {})
     query = query.reject {|k, v| v.nil? }
     query["startindex"], info = 1, []
@@ -160,16 +181,16 @@ class Scim
     end
   end
 
-  # Queries for objects by name. returns array of name/id hashes for each
-  # name found.
+  # Queries for objects by name. Returns array of name/id hashes for each
+  # name found. For possible values of +type+, see #query
   def ids(type, *names)
     na = type_info(type, :name_attr)
     filter = names.each_with_object([]) { |n, o| o << "#{na} eq \"#{n}\""}
     all_pages(type, attributes: "id,#{na}", filter: filter.join(" or "))
   end
 
-  # Convenience method to query for single object by name. 
-  # Returns its id. Raises error if not found.
+  # Convenience method to query for single object by name. Returns its id.
+  # Raises error if not found. For possible values of +type+, see #query
   def id(type, name)
     res = ids(type, name)
 
@@ -188,12 +209,26 @@ class Scim
     id
   end
 
+  # [For a user to change their own password] Token must contain "password.write" scope and the
+  #                                           correct +old_password+ must be given.
+  # [For an admin to set a user's password] Token must contain "uaa.admin" scope.
+  #
+  # For more information see:
+  # https://github.com/cloudfoundry/uaa/blob/master/docs/UAA-APIs.rst#change-password-put-useridpassword
+  # or https://github.com/cloudfoundry/uaa/blob/master/docs/UAA-Security.md#password-change
   def change_password(user_id, new_password, old_password = nil)
     password_request = {"password" => new_password}
     password_request["oldPassword"] = old_password if old_password
     json_parse_reply(*json_put(@target, "/Users/#{URI.encode(user_id)}/password", password_request, @auth_header))
   end
 
+  # [For a client to change its own secret] Token must contain "uaa.admin,client.secret" scope and the
+  #                                         correct +old_secret+ must be given.
+  # [For an admin to set a client secret] Token must contain "uaa.admin" scope.
+  #
+  # For more information see:
+  # https://github.com/cloudfoundry/uaa/blob/master/docs/UAA-APIs.rst#change-client-secret-put-oauthclientsclient_idsecret
+  # or https://github.com/cloudfoundry/uaa/blob/master/docs/UAA-Security.md#client-secret-mangagement
   def change_secret(client_id, new_secret, old_secret = nil)
     req = {"secret" => new_secret }
     req["oldSecret"] = old_secret if old_secret

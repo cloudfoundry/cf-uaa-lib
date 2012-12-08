@@ -141,7 +141,7 @@ describe TokenIssuer do
             "expires_in=98765&scope=openid+logs.read&state=bad_state"
         [302, nil, {"content-type" => "application/json", "location" => location}]
       end
-      expect {token = subject.implicit_grant_with_creds(username: "joe+admin", 
+      expect {token = subject.implicit_grant_with_creds(username: "joe+admin",
               password: "?joe's%password$@ ")}.to raise_exception BadResponse
     end
 

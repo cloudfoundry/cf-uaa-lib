@@ -43,13 +43,13 @@ describe Scim do
       check_headers(headers, :json, :json)
       [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
-    result = subject.add(:user, hair: "brown", shoe_size: "large", 
+    result = subject.add(:user, hair: "brown", shoe_size: "large",
         eye_color: ["blue", "green"], name: "fred")
     result["id"].should == "id12345"
   end
 
   it "replaces an object" do
-    obj = {hair: "black", shoe_size: "medium", eye_color: ["hazel", "brown"], 
+    obj = {hair: "black", shoe_size: "medium", eye_color: ["hazel", "brown"],
           name: "fredrick", meta: {version: 'v567'}, id: "id12345"}
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
@@ -78,7 +78,7 @@ describe Scim do
       url.should =~ %r{^#{@target}/Users\?attributes=id&startIndex=[12]$}
       method.should == :get
       check_headers(headers, nil, :json)
-      reply = url =~ /1$/ ? 
+      reply = url =~ /1$/ ?
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":1,"RESOURCES":[{"id":"id12345"}]}' :
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":2,"RESOURCES":[{"id":"id67890"}]}'
       [200, reply, {"content-type" => "application/json"}]
