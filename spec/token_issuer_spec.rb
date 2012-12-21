@@ -37,11 +37,12 @@ describe TokenIssuer do
         # TODO check basic auth header
         url.should == "http://test.uaa.target/oauth/token"
         method.should == :post
-        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "logs.read", expires_in: 98765}
+        reply = {:access_token => "test_access_token", :token_type => "BEARER",
+            :scope => "logs.read", :expires_in => 98765}
         [200, Util.json(reply), {"content-type" => "application/json"}]
       end
       token = subject.client_credentials_grant("logs.read")
-      token.should be_an_instance_of Token
+      token.should be_an_instance_of TokenInfo
       token.info["access_token"].should == "test_access_token"
       token.info["token_type"].should =~ /^bearer$/i
       token.info["scope"].should == "logs.read"
@@ -50,7 +51,8 @@ describe TokenIssuer do
 
     it "gets all granted scopes if none specified" do
       subject.set_request_handler do |url, method, body, headers|
-        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "openid logs.read", expires_in: 98765}
+        reply = {:access_token => "test_access_token", :token_type => "BEARER",
+            :scope => "openid logs.read", :expires_in => 98765}
         [200, Util.json(reply), {"content-type" => "application/json"}]
       end
       token = subject.client_credentials_grant
@@ -71,7 +73,6 @@ describe TokenIssuer do
       subject.set_request_handler { [400, '{"error":"invalid scope"}', {"content-type" => "application/json"}] }
       expect {subject.client_credentials_grant("bad.scope")}.to raise_exception TargetError
     end
-
   end
 
   context "with owner password grant" do
@@ -83,11 +84,12 @@ describe TokenIssuer do
         # TODO check basic auth header
         url.should == "http://test.uaa.target/oauth/token"
         method.should == :post
-        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "openid", expires_in: 98765}
+        reply = {:access_token => "test_access_token", :token_type => "BEARER",
+            :scope => "openid", :expires_in => 98765}
         [200, Util.json(reply), {"content-type" => "application/json"}]
       end
       token = subject.owner_password_grant("joe+admin", "?joe's%password$@ ", "openid")
-      token.should be_an_instance_of Token
+      token.should be_an_instance_of TokenInfo
       token.info["access_token"].should == "test_access_token"
       token.info["token_type"].should =~ /^bearer$/i
       token.info["scope"].should == "openid"
@@ -100,7 +102,7 @@ describe TokenIssuer do
 
     it "gets the prompts for credentials used to authenticate implicit grant" do
       subject.set_request_handler do |url, method, body, headers|
-        info = { prompts: {username: ["text", "Username"], password: ["password","Password"]} }
+        info = { :prompts => {:username => ["text", "Username"], :password => ["password","Password"]} }
         [200, Util.json(info), {"content-type" => "application/json"}]
       end
       result = subject.prompts
@@ -126,8 +128,8 @@ describe TokenIssuer do
             "expires_in=98765&scope=openid+logs.read&state=#{state}"
         [302, nil, {"content-type" => "application/json", "location" => location}]
       end
-      token = subject.implicit_grant_with_creds(username: "joe+admin", password: "?joe's%password$@ ")
-      token.should be_an_instance_of Token
+      token = subject.implicit_grant_with_creds(:username => "joe+admin", :password => "?joe's%password$@ ")
+      token.should be_an_instance_of TokenInfo
       token.info["access_token"].should == "test_access_token"
       token.info["token_type"].should =~ /^bearer$/i
       Util.arglist(token.info["scope"]).to_set.should == Util.arglist("openid logs.read").to_set
@@ -141,8 +143,8 @@ describe TokenIssuer do
             "expires_in=98765&scope=openid+logs.read&state=bad_state"
         [302, nil, {"content-type" => "application/json", "location" => location}]
       end
-      expect {token = subject.implicit_grant_with_creds(username: "joe+admin",
-              password: "?joe's%password$@ ")}.to raise_exception BadResponse
+      expect {token = subject.implicit_grant_with_creds(:username => "joe+admin",
+          :password => "?joe's%password$@ ")}.to raise_exception BadResponse
     end
 
   end
@@ -153,7 +155,7 @@ describe TokenIssuer do
       redir_uri = "http://call.back/uri_path"
       uri_parts = subject.authcode_uri(redir_uri).split('?')
       uri_parts[0].should == "http://test.uaa.target/oauth/authorize"
-      params = Util.decode_form_to_hash(uri_parts[1])
+      params = Util.decode_form(uri_parts[1])
       params["response_type"].should == "code"
       params["client_id"].should == "test_client"
       params["scope"].should be_nil
@@ -168,7 +170,8 @@ describe TokenIssuer do
         # TODO check basic auth header
         url.should match "http://test.uaa.target/oauth/token"
         method.should == :post
-        reply = {access_token: "test_access_token", token_type: "BEARER", scope: "openid", expires_in: 98765}
+        reply = {:access_token => "test_access_token", :token_type => "BEARER",
+            :scope => "openid", :expires_in => 98765}
         [200, Util.json(reply), {"content-type" => "application/json"}]
       end
       cburi = "http://call.back/uri_path"
@@ -176,7 +179,7 @@ describe TokenIssuer do
       state = /state=([^&]+)/.match(redir_uri)[1]
       reply_query = "state=#{state}&code=kz8%2F5gQZ2pc%3D"
       token = subject.authcode_grant(redir_uri, reply_query)
-      token.should be_an_instance_of Token
+      token.should be_an_instance_of TokenInfo
       token.info["access_token"].should == "test_access_token"
       token.info["token_type"].should =~ /^bearer$/i
       token.info["scope"].should == "openid"

@@ -18,7 +18,8 @@ module CF::UAA
 
 describe TokenCoder do
 
-  subject { TokenCoder.new("test_resource", "test_secret", OpenSSL::PKey::RSA.generate(512) ) }
+  subject { TokenCoder.new(:audience_ids => "test_resource",
+      :skey => "test_secret", :pkey => OpenSSL::PKey::RSA.generate(512) ) }
 
   before :each do
     @tkn_body = {'foo' => "bar"}
@@ -56,7 +57,7 @@ describe TokenCoder do
       2yrlT5h164jGCxqe7++1kIl4ollFCgz6QJ8lcmb/2Q==
       -----END RSA PRIVATE KEY-----
     DATA
-    coder = TokenCoder.new("test_resource", nil, pem)
+    coder = TokenCoder.new(:audience_ids => "test_resource", :pkey => pem)
     tkn = coder.encode(@tkn_body, 'RS256')
     result = coder.decode("bEaReR #{tkn}")
     result.should_not be_nil
@@ -80,13 +81,13 @@ describe TokenCoder do
   end
 
   it "raises a decode error if the token is signed by an unknown signing key" do
-    other = TokenCoder.new("test_resource", "other_secret", nil)
+    other = TokenCoder.new(:audience_ids => "test_resource", :skey => "other_secret")
     tkn = other.encode(@tkn_body)
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
 
   it "raises a decode error if the token is an unknown signing algorithm" do
-    segments = [Util.json_encode64(typ: "JWT", alg:"BADALGO")]
+    segments = [Util.json_encode64(:typ => "JWT", :alg =>"BADALGO")]
     segments << Util.json_encode64(@tkn_body)
     segments << Util.encode64("BADSIG")
     tkn = segments.join('.')
@@ -115,13 +116,12 @@ describe TokenCoder do
 
   it "decodes a token without validation" do
     token = "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImY1MTgwMjExLWVkYjItNGQ4OS1hNmQwLThmNGVjMTE0NTE4YSIsInJlc291cmNlX2lkcyI6WyJjbG91ZF9jb250cm9sbGVyIiwicGFzc3dvcmQiXSwiZXhwaXJlc19hdCI6MTMzNjU1MTc2Niwic2NvcGUiOlsicmVhZCJdLCJlbWFpbCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9hdXRob3JpdGllcyI6WyJST0xFX1VOVFJVU1RFRCJdLCJleHBpcmVzX2luIjo0MzIwMCwidXNlcl9hdXRob3JpdGllcyI6WyJST0xFX1VTRVIiXSwidXNlcl9pZCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9pZCI6InZtYyIsInRva2VuX2lkIjoiZWRlYmYzMTctNWU2Yi00YmYwLWFmM2ItMTA0OWRjNmFlYjc1In0.XoirrePfEujnZ9Vm7SRRnj3vZEfRp2tkjkS_OCVz5Bs"
-    info = TokenCoder.decode(token, nil, nil, false)
+    info = TokenCoder.decode(token, :verify => false)
     info["id"].should_not be_nil
     info["email"].should == "olds@vmware.com"
     #puts Time.at(info[:exp].to_i)
     #BaseCli.pp info
   end
-
 
 end
 

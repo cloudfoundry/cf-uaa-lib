@@ -21,8 +21,8 @@ module CF::UAA
 # but they do not obtain them from the Authorization Server. This
 # class is for resource servers which accept bearer JWT tokens.
 #
-# For more on JWT, see the JSON Web \Token RFC here:
-# http://tools.ietf.org/id/draft-ietf-oauth-json-web-token-05.html
+# For more on JWT, see the JSON Web Token RFC here:
+# {http://tools.ietf.org/id/draft-ietf-oauth-json-web-token-05.html}
 #
 # An instance of this class can be used to decode and verify the contents
 # of a bearer token. Methods of this class can validate token signatures
@@ -30,19 +30,40 @@ module CF::UAA
 # is for a particular audience.
 class TokenCoder
 
-  def self.init_digest(algo) # :nodoc:
+  def self.init_digest(algo) # @private
     OpenSSL::Digest::Digest.new(algo.sub('HS', 'sha').sub('RS', 'sha'))
   end
 
-  # Takes a +token_body+ (the middle section of the JWT) and returns a signed
-  # token string.
-  def self.encode(token_body, skey, pkey = nil, algo = 'HS256')
+  def self.normalize_options(opts) # @private
+    opts = opts.dup
+    pk = opts[:pkey]
+    opts[:pkey] = OpenSSL::PKey::RSA.new(pk) if pk && !pk.is_a?(OpenSSL::PKey::PKey)
+    opts[:audience_ids] = Util.arglist(opts[:audience_ids])
+    opts[:algorithm] = 'HS256' unless opts[:algorithm]
+    opts[:verify] = true unless opts.key?(:verify)
+    opts
+  end
+
+  # Constructs a signed JWT.
+  # @param token_body Contents of the token in any object that can be converted to JSON.
+  # @param skey (see #initialize)
+  # @param pkey  (see #initialize)
+  # @return [String] a signed JWT token string in the form "xxxx.xxxxx.xxxx".
+  def self.encode(token_body, options = {}, obsolete1 = nil, obsolete2 = nil)
+    unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
+      # deprecated: def self.encode(token_body, skey, pkey = nil, algo = 'HS256')
+      warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
+      options = {:skey => options }
+      options[:pkey], options[:algorithm] = obsolete1, obsolete2
+    end
+    options = normalize_options(options)
+    algo = options[:algorithm]
     segments = [Util.json_encode64("typ" => "JWT", "alg" => algo)]
     segments << Util.json_encode64(token_body)
     if ["HS256", "HS384", "HS512"].include?(algo)
-      sig = OpenSSL::HMAC.digest(init_digest(algo), skey, segments.join('.'))
+      sig = OpenSSL::HMAC.digest(init_digest(algo), options[:skey], segments.join('.'))
     elsif ["RS256", "RS384", "RS512"].include?(algo)
-      sig = pkey.sign(init_digest(algo), segments.join('.'))
+      sig = options[:pkey].sign(init_digest(algo), segments.join('.'))
     elsif algo == "none"
       sig = ""
     else
@@ -52,27 +73,37 @@ class TokenCoder
     segments.join('.')
   end
 
-  # Decodes a +token+ and optionally verifies the signature. Both a secret key
-  # and a public key can be provided for signature verification. The JWT
-  # +token+ header indicates what signature algorithm was used and the
+  # Decodes a JWT token and optionally verifies the signature. Both a
+  # symmetrical key and a public key can be provided for signature verification.
+  # The JWT header indicates what signature algorithm was used and the
   # corresponding key is used to verify the signature (if +verify+ is true).
-  # Returns a hash of the token contents or raises +DecodeError+.
-  def self.decode(token, skey = nil, pkey = nil, verify = true)
-    pkey = OpenSSL::PKey::RSA.new(pkey) unless pkey.nil? || pkey.is_a?(OpenSSL::PKey::PKey)
+  # @param [String] token A JWT token as returned by {TokenCoder.encode}
+  # @param skey (see #initialize)
+  # @param pkey  (see #initialize)
+  # @param [Boolean] verify
+  # @return [Hash] the token contents
+  def self.decode(token, options = {}, obsolete1 = nil, obsolete2 = nil)
+    unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
+      # deprecated: def self.decode(token, skey = nil, pkey = nil, verify = true)
+      warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
+      options = {:skey => options }
+      options[:pkey], options[:verify] = obsolete1, obsolete2
+    end
+    options = normalize_options(options)
     segments = token.split('.')
     raise DecodeError, "Not enough or too many segments" unless [2,3].include? segments.length
     header_segment, payload_segment, crypto_segment = segments
     signing_input = [header_segment, payload_segment].join('.')
     header = Util.json_decode64(header_segment)
-    payload = Util.json_decode64(payload_segment)
-    return payload if !verify || (algo = header["alg"]) == "none"
+    payload = Util.json_decode64(payload_segment, (:sym if options[:symbolize_keys]))
+    return payload if !options[:verify] || (algo = header["alg"]) == "none"
     signature = Util.decode64(crypto_segment)
     if ["HS256", "HS384", "HS512"].include?(algo)
       raise DecodeError, "Signature verification failed" unless
-          signature == OpenSSL::HMAC.digest(init_digest(algo), skey, signing_input)
+          signature == OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input)
     elsif ["RS256", "RS384", "RS512"].include?(algo)
       raise DecodeError, "Signature verification failed" unless
-          pkey.verify(init_digest(algo), signature, signing_input)
+          options[:pkey].verify(init_digest(algo), signature, signing_input)
     else
       raise DecodeError, "Algorithm not supported"
     end
@@ -82,17 +113,24 @@ class TokenCoder
   # Creates a new token en/decoder for a service that is associated with
   # the the audience_ids, the symmetrical token validation key, and the
   # public and/or private keys. Parameters:
-  # +audience_ids+:: an array or space separated strings. Should
-  #                  indicate values which indicate the token is intended for this service
-  #                  instance. It will be compared with tokens as they are decoded to
-  #                  ensure that the token was intended for this audience.
-  # +skey+:: is used to sign and validate tokens using symetrical key algoruthms
-  # +pkey+:: may be a string or File which includes public and
-  #          optionally private key data in PEM or DER formats. The private key
-  #          is used to sign tokens and the public key is used to validate tokens.
-  def initialize(audience_ids, skey, pkey = nil)
-    @audience_ids, @skey, @pkey = Util.arglist(audience_ids), skey, pkey
-    @pkey = OpenSSL::PKey::RSA.new(pkey) unless pkey.nil? || pkey.is_a?(OpenSSL::PKey::PKey)
+  # @param [Array<String>, String] audience_ids An array or space separated
+  #   strings of values which indicate the token is intended for this service
+  #   instance. It will be compared with tokens as they are decoded to ensure
+  #   that the token was intended for this audience.
+  # @param [String] skey is used to sign and validate tokens using symmetrical
+  #   key algoruthms
+  # @param [String, File, OpenSSL::PKey::PKey] pkey may be a String, File in
+  #   PEM or DER formats. May include public and/or private key data. The
+  #   private key is used to sign tokens and the public key is used to
+  #   validate tokens.
+  def initialize(options = {}, obsolete1 = nil, obsolete2 = nil)
+    unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
+      # deprecated: def initialize(audience_ids, skey, pkey = nil)
+      warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
+      options = {:audience_ids => options }
+      options[:skey], options[:pkey] = obsolete1, obsolete2
+    end
+    @options = self.class.normalize_options(options)
   end
 
   # Encode a JWT token. Takes a hash of values to use as the token body.
@@ -100,26 +138,30 @@ class TokenCoder
   # Algorithm may be HS256, HS384, HS512, RS256, RS384, RS512, or none --
   # assuming the TokenCoder instance is configured with the appropriate
   # key -- i.e. pkey must include a private key for the RS algorithms.
-  def encode(token_body = {}, algorithm = 'HS256')
-    token_body['aud'] = @audience_ids unless token_body['aud']
-    token_body['exp'] = Time.now.to_i + 7 * 24 * 60 * 60 unless token_body['exp']
-    self.class.encode(token_body, @skey, @pkey, algorithm)
+  # @param token_body (see TokenCoder.encode)
+  # @return (see TokenCoder.encode)
+  def encode(token_body = {}, algorithm = nil)
+    token_body[:aud] = @options[:audience_ids] if @options[:audience_ids] && !token_body[:aud] && !token_body['aud']
+    token_body[:exp] = Time.now.to_i + 7 * 24 * 60 * 60 unless token_body[:exp] || token_body['exp']
+    self.class.encode(token_body, algorithm ? @options.merge(:algorithm => algorithm) : @options)
   end
 
   # Returns hash of values decoded from the token contents. If the
-  # token contains audience ids in the +aud+ field and they do not contain one
-  # or more of the +audience_ids+ in this instance, an AuthError will be raised.
-  # AuthError is raised if the token has expired.
+  # audience_ids were specified in the options to this instance (see #initialize)
+  # and the token does not contain one or more of those audience_ids, an
+  # AuthError will be raised. AuthError is raised if the token has expired.
+  # @param [String] auth_header (see Scim.initialize#auth_header)
+  # @return (see TokenCoder.decode)
   def decode(auth_header)
-    unless auth_header && (tkn = auth_header.split).length == 2 && tkn[0] =~ /^bearer$/i
+    unless auth_header && (tkn = auth_header.split(' ')).length == 2 && tkn[0] =~ /^bearer$/i
       raise DecodeError, "invalid authentication header: #{auth_header}"
     end
-    reply = self.class.decode(tkn[1], @skey, @pkey)
-    auds = Util.arglist(reply["aud"])
-    if @audience_ids && (!auds || (auds & @audience_ids).empty?)
-      raise AuthError, "invalid audience: #{auds.join(' ')}"
+    reply = self.class.decode(tkn[1], @options)
+    auds = Util.arglist(reply[:aud] || reply['aud'])
+    if @options[:audience_ids] && (!auds || (auds & @options[:audience_ids]).empty?)
+      raise AuthError, "invalid audience: #{auds}"
     end
-    exp = reply["exp"]
+    exp = reply[:exp] || reply['exp']
     unless exp.is_a?(Integer) && exp > Time.now.to_i
       raise AuthError, "token expired"
     end

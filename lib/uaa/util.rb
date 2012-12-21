@@ -16,13 +16,13 @@ require "base64"
 require 'logger'
 require 'uri'
 
-# :nodoc:
+# Cloud Foundry namespace
 module CF
-  # Namespace for Cloudfoundry User Account and Authentication service Ruby APIs
+  # Namespace for User Account and Authentication service
   module UAA end
 end
 
-class Logger # :nodoc:
+class Logger # @private
   Severity::TRACE = Severity::DEBUG - 1
   def trace(progname, &blk); add(Logger::Severity::TRACE, nil, progname, &blk) end
   def trace? ; @level <= Logger::Severity::TRACE end
@@ -33,49 +33,44 @@ module CF::UAA
 # Useful parent class. All CF::UAA exceptions are derived from this.
 class UAAError < RuntimeError; end
 
-# Indicates an authentication error
+# Indicates an authentication error.
 class AuthError < UAAError; end
 
-# Indicates an error occurred decoding a token, base64 decoding, or JSON
+# Indicates an error occurred decoding a token, base64 decoding, or JSON.
 class DecodeError < UAAError; end
 
-# Low level helper functions useful to the UAA client APIs
+# Helper functions useful to the UAA client APIs
 class Util
 
-  # HTTP headers and various protocol tags tend to contain '-' characters,
-  # are intended to be case-insensitive, and often end up as keys in ruby
-  # hashes. SCIM[http://www.simplecloud.info/] specifies that attribute
-  # names are case-insensitive and this code downcases such strings using
-  # this method.
+  # General method to transform a hash key to a given style. Useful when
+  # dealing with HTTP headers and various protocol tags that tend to contain
+  # '-' characters and are case-insensitive and want to use them as keys in
+  # ruby hashes. Useful for dealing with {http://www.simplecloud.info/ SCIM}
+  # case-insensitive attribute names to normalize all attribute names (downcase).
   #
-  # The various +styles+ convert +key+ as follows:
-  # [+:undash+] to lowercase, '-' to  '_', and to a symbol
-  # [+:todash+] to string, '_' to '-'
-  # [+:uncamel+] uppercase to underscore-lowercase, to symbol
-  # [+:tocamel+] reverse of +uncamel+
-  # [+:tosym+] to symbol
-  # [+:tostr+] to string
-  # [+:down+] to lowercase
-  # [+:none+] leave the damn key alone
-  #
-  # returns new key
-  def self.hash_key(k, style)
+  # @param [String, Symbol] key current key
+  # @param [Symbol] style can be sym, downsym, down, str, [un]dash, [un]camel, nil, none
+  # @return [String, Symbol] new key
+  def self.hash_key(key, style)
     case style
-    when :undash then k.to_s.downcase.tr('-', '_').to_sym
-    when :todash then k.to_s.downcase.tr('_', '-')
-    when :uncamel then k.to_s.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').downcase.to_sym
-    when :tocamel then k.to_s.gsub(/(_[a-z])([^_]*)/) { $1[1].upcase + $2 }
-    when :tosym then k.to_sym
-    when :tostr then k.to_s
-    when :down then k.to_s.downcase
-    when :none then k
+    when nil, :none then key
+    when :downsym then key.to_s.downcase.to_sym
+    when :sym then key.to_sym
+    when :str then key.to_s
+    when :down then key.to_s.downcase
+    when :dash then key.to_s.downcase.tr('_', '-')
+    when :undash then key.to_s.downcase.tr('-', '_').to_sym
+    when :uncamel then key.to_s.gsub(/([A-Z])([^A-Z]*)/,'_\1\2').downcase.to_sym
+    when :camel then key.to_s.gsub(/(_[a-z])([^_]*)/) { $1[1].upcase + $2 }
     else raise ArgumentError, "unknown hash key style: #{style}"
     end
   end
 
-  # Modifies obj in place changing any hash keys to style (see hash_key).
-  # Recursively modifies subordinate hashes. Returns modified obj
-  def self.hash_keys!(obj, style = :none)
+  # Modifies obj in place changing any hash keys to style. Recursively modifies
+  # subordinate hashes.
+  # @param style (see Util.hash_key)
+  # @return modified obj
+  def self.hash_keys!(obj, style = nil)
     return obj if style == :none
     return obj.each {|o| hash_keys!(o, style)} if obj.is_a? Array
     return obj unless obj.is_a? Hash
@@ -88,9 +83,11 @@ class Util
     obj.merge!(newkeys)
   end
 
-  # Makes a new copy of obj with hash keys to style (see hash_key).
-  # Recursively modifies subordinate hashes. Returns modified obj
-  def self.hash_keys(obj, style = :none)
+  # Makes a new copy of obj with hash keys to style. Recursively modifies
+  # subordinate hashes.
+  # @param style (see Util.hash_key)
+  # @return obj or new object if hash keys were changed
+  def self.hash_keys(obj, style = nil)
     return obj.collect {|o| hash_keys(o, style)} if obj.is_a? Array
     return obj unless obj.is_a? Hash
     obj.each_with_object({}) {|(k, v), h|
@@ -98,64 +95,112 @@ class Util
     }
   end
 
-  # Takes an x-www-form-urlencoded string and returns a hash of key value pairs.
-  # Useful for OAuth parameters. It raises an ArgumentError if a key occurs
-  # more than once, which is a restriction of OAuth query strings.
-  # OAuth parameters are case sensitive, scim parameters are case-insensitive
-  # See ietf rfc 6749 section 3.1.
-  def self.decode_form_to_hash(url_encoded_pairs, style = :none)
-    URI.decode_www_form(url_encoded_pairs).each_with_object({}) do |p, o|
-      k = hash_key(p[0], style)
-      raise ArgumentError, "duplicate keys in form parameters" if o[k]
-      o[k] = p[1]
+  # handle ruby 1.8.7 compatibility for form encoding
+  if URI.respond_to?(:encode_www_form_component)
+    def self.encode_component(str) URI.encode_www_form_component(str) end #@private
+    def self.decode_component(str) URI.decode_www_form_component(str) end #@private
+  else
+    def self.encode_component(str) # @private
+      str.to_s.gsub(/([^ a-zA-Z0-9*_.-]+)/) {
+        '%' + $1.unpack('H2' * $1.size).join('%').upcase
+      }.tr(' ', '+')
     end
+    def self.decode_component(str) # @private
+      str.tr('+', ' ').gsub(/((?:%[0-9a-fA-F]{2})+)/) {[$1.delete('%')].pack('H*')}
+    end
+  end
+
+  # Takes an x-www-form-urlencoded string and returns a hash of utf-8 key/value
+  # pairs. Useful for OAuth parameters. Raises ArgumentError if a key occurs
+  # more than once, which is a restriction of OAuth query strings.
+  # OAuth parameters are case sensitive, scim parameters are case-insensitive.
+  # @see http://tools.ietf.org/html/rfc6749#section-3.1
+  # @param [String] url_encoded_pairs in an x-www-form-urlencoded string
+  # @param style (see Util.hash_key)
+  # @return [Hash] of key value pairs
+  def self.decode_form(url_encoded_pairs, style = nil)
+    pairs = {}
+    url_encoded_pairs.split(/[&;]/).each do |pair|
+      k, v = pair.split('=', 2).collect { |v| decode_component(v) }
+      raise "duplicate keys in form parameters" if pairs.key?(k = hash_key(k, style))
+      pairs[k] = v
+    end
+    pairs
   rescue Exception => e
     raise ArgumentError, e.message
   end
 
+  # Encode an object into x-www-form-urlencoded string suitable for oauth2.
+  # @note that ruby 1.9.3 converts form components to utf-8. Ruby 1.8.7
+  #   users must ensure all data is in utf-8 format before passing to form encode.
+  # @param [Hash] obj a hash of key/value pairs to be encoded.
+  # @see http://tools.ietf.org/html/rfc6749#section-3.1
+  def self.encode_form(obj)
+    obj.map {|k, v| encode_component(k) << '=' << encode_component(v)}.join('&')
+  end
+
   # Converts +obj+ to JSON
+  # @return [String] obj in JSON form.
   def self.json(obj) MultiJson.dump(obj) end
 
   # Converts +obj+ to nicely formatted JSON
-  def self.json_pretty(obj) MultiJson.dump(obj, pretty: true) end
+  # @return [String] obj in formatted json
+  def self.json_pretty(obj) MultiJson.dump(obj, :pretty => true) end
 
   # Converts +obj+ to a URL-safe base 64 encoded string
+  # @return [String]
   def self.json_encode64(obj = {}) encode64(json(obj)) end
 
-  # Converts +str+ from base64 encoding of a JSON string to a (returned) hash.
-  def self.json_decode64(str) json_parse(decode64(str)) end
+  # Decodes base64 encoding of JSON data.
+  # @param [String] str
+  # @param style (see Util.hash_key)
+  # @return [Hash]
+  def self.json_decode64(str, style = nil) json_parse(decode64(str), style) end
 
-  # encodes +obj+ as a URL-safe base 64 encoded string, with trailing padding removed.
-  def self.encode64(obj) Base64::urlsafe_encode64(obj).gsub(/=*$/, '') end
+  # Encodes +obj+ as a URL-safe base 64 encoded string, with trailing padding removed.
+  # @return [String]
+  def self.encode64(obj)
+    str = Base64.respond_to?(:urlsafe_encode64)? Base64.urlsafe_encode64(obj):
+        [obj].pack("m").tr("+/", "-_")
+    str.gsub!(/(\n|=*$)/, '')
+    str
+  end
 
-  # adds proper padding to a URL-safe base 64 encoded string, and then returns the decoded string.
+  # Decodes a URL-safe base 64 encoded string. Adds padding if necessary.
+  # @return [String] decoded string
   def self.decode64(str)
     return unless str
     pad = str.length % 4
-    str << '=' * (4 - pad) if pad > 0
-    Base64::urlsafe_decode64(str)
+    str = str + '=' * (4 - pad) if pad > 0
+    Base64.respond_to?(:urlsafe_decode64) ?
+        Base64.urlsafe_decode64(str) : Base64.decode64(str.tr('-_', '+/'))
   rescue ArgumentError
     raise DecodeError, "invalid base64 encoding"
   end
 
-  # Parses a JSON string into the returned hash. For possible values of +style+
-  # see #hask_key
-  def self.json_parse(str, style = :none)
+  # Parses a JSON string.
+  # @param style (see Util.hash_key)
+  # @return [Hash] parsed data
+  def self.json_parse(str, style = nil)
     hash_keys!(MultiJson.load(str), style) if str && !str.empty?
   rescue MultiJson::DecodeError
     raise DecodeError, "json decoding error"
   end
 
-  def self.truncate(obj, limit = 50) # :nodoc:
+  # Converts obj to a string and truncates if over limit.
+  # @return [String]
+  def self.truncate(obj, limit = 50)
     return obj.to_s if limit == 0
     limit = limit < 5 ? 1 : limit - 4
     str = obj.to_s[0..limit]
     str.length > limit ? str + '...': str
   end
 
+  # Converts common input formats into array of strings.
   # Many parameters in these classes can be given as arrays, or as a list of
   # arguments separated by spaces or commas. This method handles the possible
-  # inputs and returns an array of arguments.
+  # inputs and returns an array of strings.
+  # @return [Array<String>]
   def self.arglist(arg, default_arg = nil)
     arg = default_arg unless arg
     return arg if arg.nil? || arg.respond_to?(:join)
@@ -163,19 +208,25 @@ class Util
     arg.split(/[\s\,]+/).reject { |e| e.empty? }
   end
 
-  # Reverse of arglist, puts arrays of strings into a single, space-delimited string
+  # Joins arrays of strings into a single string. Reverse of {Util.arglist}.
+  # @param [Object, #join] arg
+  # @param [String] delim delimiter to put between strings.
+  # @return [String]
   def self.strlist(arg, delim = ' ')
     arg.respond_to?(:join) ? arg.join(delim) : arg.to_s if arg
   end
 
   # Set the default logger used by the higher level classes.
+  # @param [String, Symbol] level such as info, debug trace.
+  # @param [IO] sink output for log messages, defaults to $stdout
+  # @return [Logger]
   def self.default_logger(level = nil, sink = nil)
     if sink || !@default_logger
       @default_logger = Logger.new(sink || $stdout)
       level = :info unless level
       @default_logger.formatter = Proc.new { |severity, time, pname, msg| puts msg }
     end
-    @default_logger.level = Logger::Severity.const_get(level.upcase) if level
+    @default_logger.level = Logger::Severity.const_get(level.to_s.upcase) if level
     @default_logger
   end
 

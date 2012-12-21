@@ -23,7 +23,7 @@ describe Http do
   include SpecHelper
 
   it "sets a request handler" do
-    set_request_handler do |req|
+    set_request_handler do |url, method, body, headers|
       [200, "body", {"content-type" => "text/plain"}]
     end
     status, body, resp_headers = http_get("http://example.com")

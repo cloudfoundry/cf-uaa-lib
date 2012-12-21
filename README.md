@@ -2,6 +2,8 @@
 
 Client gem for interacting with the [CloudFoundry UAA server](https://github.com/cloudfoundry/uaa)
 
+For documentation see: https://rubygems.org/gems/cf-uaa-lib
+
 ## Install from rubygems
 
     $ gem install cf-uaa-lib
@@ -17,7 +19,7 @@ Client gem for interacting with the [CloudFoundry UAA server](https://github.com
     #!/usr/bin/env ruby
     require 'uaa'
     token_issuer = CF::UAA::TokenIssuer.new("https://uaa.cloudfoundry.com", "vmc")
-    puts token\_issuer.prompts.inspect
+    puts token_issuer.prompts.inspect
     token = token_issuer.implicit_grant_with_creds(username: "<your_username>", password: "<your_password>")
     token_info = TokenCoder.decode(token.info["access_token"], nil, nil, false) #token signature not verified
     puts token_info["user_name"]

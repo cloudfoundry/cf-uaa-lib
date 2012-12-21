@@ -17,19 +17,19 @@ require 'uaa/util'
 
 module CF::UAA
 
-# Indicates URL for the target is bad or not accessible
+# Indicates URL for the target is bad or not accessible.
 class BadTarget < UAAError; end
 
-# Error indicating the resource within the target server was not found
+# Indicates the resource within the target server was not found.
 class NotFound < UAAError; end
 
 # Indicates a syntax error in a response from the UAA, e.g. missing required response field.
 class BadResponse < UAAError; end
 
-# Indicates a token is malformed or expired
+# Indicates a token is malformed or expired.
 class InvalidToken < UAAError; end
 
-# Indicates an error from the http client stack
+# Indicates an error from the http client stack.
 class HTTPException < UAAError; end
 
 # An application level error from the UAA which includes error info in the reply.
@@ -43,46 +43,51 @@ end
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
 
-  # Sets the current logger instance to recieve error messages
+  # Sets the current logger instance to recieve error messages.
+  # @param [Logger] logr
+  # @return [Logger]
   def logger=(logr); @logger = logr end
 
-  # Returns the current logger or CF::UAA::Util.default_logger is none has been set.
-  def logger ; @logger ||= Util.default_logger end
+  # The current logger or {Util.default_logger} if none has been set.
+  # @return [Logger]
+  def logger ; @logger || Util.default_logger end
 
-  # Returns true if the current logger is set to +:trace+ level
-  def trace? ; @logger && @logger.respond_to?(:trace?) && @logger.trace? end
+  # Indicates if the current logger is set to +:trace+ level.
+  # @return [Boolean]
+  def trace? ; (lgr = logger).respond_to?(:trace?) && lgr.trace? end
 
-  # Sets handler for outgoing http requests. If not set, an internal cache of
-  # net/http connections is used.
-  # Arguments to handler are url, method, body, headers.
-  def set_request_handler(&blk) @req_handler = blk end
+  # Sets a handler for outgoing http requests. If no handler is set, an
+  # internal cache of net/http connections is used. Arguments to the handler
+  # are url, method, body, headers.
+  # @param [Proc] blk handler block
+  # @return [nil]
+  def set_request_handler(&blk) @req_handler = blk; nil end
 
-  # Returns a string for use in an http basic authentication header
+  # Constructs an http basic authentication header.
+  # @return [String]
   def self.basic_auth(name, password)
-    "Basic " + Base64::strict_encode64("#{name}:#{password}")
+    str = "#{name}:#{password}"
+    "Basic " + (Base64.respond_to?(:strict_encode64)?
+        Base64.strict_encode64(str): [str].pack("m").gsub(/\n/, ''))
   end
 
   private
 
-  def add_auth_json(auth, headers, jsonhdr = "content-type")
-    headers["authorization"] = auth if auth
-    headers.merge!(jsonhdr => "application/json")
+  def json_get(target, path = nil, style = nil, headers = {})
+    raise ArgumentError unless style.nil? || style.is_a?(Symbol)
+    json_parse_reply(style, *http_get(target, path, headers.merge("accept" => "application/json")))
   end
 
-  def json_get(target, path = nil, authorization = nil, key_style = :none, headers = {})
-    json_parse_reply(*http_get(target, path,
-        add_auth_json(authorization, headers, "accept")), key_style)
+  def json_post(target, path, body, headers = {})
+    http_post(target, path, Util.json(body), headers.merge("content-type" => "application/json"))
   end
 
-  def json_post(target, path, body, authorization, headers = {})
-    http_post(target, path, Util.json(body), add_auth_json(authorization, headers))
+  def json_put(target, path, body, headers = {})
+    http_put(target, path, Util.json(body), headers.merge("content-type" => "application/json"))
   end
 
-  def json_put(target, path, body, authorization = nil, headers = {})
-    http_put(target, path, Util.json(body), add_auth_json(authorization, headers))
-  end
-
-  def json_parse_reply(status, body, headers, key_style = :none)
+  def json_parse_reply(style, status, body, headers)
+    raise ArgumentError unless style.nil? || style.is_a?(Symbol)
     unless [200, 201, 204, 400, 401, 403].include? status
       raise (status == 404 ? NotFound : BadResponse), "invalid status response: #{status}"
     end
@@ -90,8 +95,8 @@ module Http
           headers["content-type"] !~ /application\/json/i)
       raise BadResponse, "received invalid response content or type"
     end
-    parsed_reply = Util.json_parse(body, key_style)
-    if status >= 400
+    parsed_reply = Util.json_parse(body, style)
+  if status >= 400
       raise parsed_reply && parsed_reply["error"] == "invalid_token" ?
           InvalidToken : TargetError.new(parsed_reply), "error response"
     end
@@ -131,8 +136,8 @@ module Http
   end
 
   def net_http_request(url, method, body, headers)
-    raise ArgumentError unless reqtype = {delete: Net::HTTP::Delete,
-        get: Net::HTTP::Get, post: Net::HTTP::Post, put: Net::HTTP::Put}[method]
+    raise ArgumentError unless reqtype = {:delete => Net::HTTP::Delete,
+        :get => Net::HTTP::Get, :post => Net::HTTP::Post, :put => Net::HTTP::Put}[method]
     headers["content-length"] = body.length if body
     uri = URI.parse(url)
     req = reqtype.new(uri.request_uri)

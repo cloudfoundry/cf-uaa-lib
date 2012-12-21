@@ -43,14 +43,14 @@ describe Scim do
       check_headers(headers, :json, :json)
       [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
-    result = subject.add(:user, hair: "brown", shoe_size: "large",
-        eye_color: ["blue", "green"], name: "fred")
+    result = subject.add(:user, :hair => "brown", :shoe_size => "large",
+        :eye_color => ["blue", "green"], :name => "fred")
     result["id"].should == "id12345"
   end
 
   it "replaces an object" do
-    obj = {hair: "black", shoe_size: "medium", eye_color: ["hazel", "brown"],
-          name: "fredrick", meta: {version: 'v567'}, id: "id12345"}
+    obj = {:hair => "black", :shoe_size => "medium", :eye_color => ["hazel", "brown"],
+          :name => "fredrick", :meta => {:version => 'v567'}, :id => "id12345"}
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :put
@@ -75,17 +75,18 @@ describe Scim do
 
   it "pages through all objects" do
     subject.set_request_handler do |url, method, body, headers|
-      url.should =~ %r{^#{@target}/Users\?attributes=id&startIndex=[12]$}
+      url.should =~ %r{^#{@target}/Users\?}
+      url.should =~ %r{[\?&]attributes=id(&|$)}
+      url.should =~ %r{[\?&]startIndex=[12](&|$)}
       method.should == :get
       check_headers(headers, nil, :json)
-      reply = url =~ /1$/ ?
+      reply = url =~ /startIndex=1/ ?
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":1,"RESOURCES":[{"id":"id12345"}]}' :
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":2,"RESOURCES":[{"id":"id67890"}]}'
       [200, reply, {"content-type" => "application/json"}]
     end
-    result = subject.all_pages(:user, attributes: 'id')
-    result[0]['id'].should == "id12345"
-    result[1]['id'].should == "id67890"
+    result = subject.all_pages(:user, :attributes => 'id')
+    [result[0]['id'], result[1]['id']].to_set.should == ["id12345", "id67890"].to_set
   end
 
   it "changes a user's password" do
@@ -93,7 +94,7 @@ describe Scim do
       url.should == "#{@target}/Users/id12345/password"
       method.should == :put
       check_headers(headers, :json, :json)
-      body.should == '{"password":"newpwd","oldPassword":"oldpwd"}'
+      body.should include('"password":"newpwd"', '"oldPassword":"oldpwd"')
       [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
     result = subject.change_password("id12345", "newpwd", "oldpwd")
@@ -105,7 +106,7 @@ describe Scim do
       url.should == "#{@target}/oauth/clients/id12345/secret"
       method.should == :put
       check_headers(headers, :json, :json)
-      body.should == '{"secret":"newpwd","oldSecret":"oldpwd"}'
+      body.should include('"secret":"newpwd"', '"oldSecret":"oldpwd"')
       [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
     result = subject.change_secret("id12345", "newpwd", "oldpwd")
