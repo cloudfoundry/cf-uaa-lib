@@ -72,8 +72,7 @@ class TokenIssuer
     if scope = Util.arglist(params.delete(:scope))
       params[:scope] = Util.strlist(scope)
     end
-    headers = {'content-type' => 'application/x-www-form-urlencoded',
-        'accept' => 'application/json',
+    headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8,
         'authorization' => Http.basic_auth(@client_id, @client_secret) }
     reply = json_parse_reply(@key_style, *request(@token_target, :post,
         '/oauth/token', Util.encode_form(params), headers))
@@ -134,7 +133,7 @@ class TokenIssuer
     uri = authorize_path_args("token", redir_uri, scope, state = random_state)
 
     # the accept header is only here so the uaa will issue error replies in json to aid debugging
-    headers = {'content-type' => 'application/x-www-form-urlencoded', 'accept' => 'application/json' }
+    headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8 }
     body = Util.encode_form(credentials.merge(:source => 'credentials'))
     status, body, headers = request(@target, :post, uri, body, headers)
     raise BadResponse, "status #{status}" unless status == 302
@@ -184,8 +183,7 @@ class TokenIssuer
   # @param [String] redirect_uri (see #authcode_uri)
   # @return (see #authcode_uri)
   def autologin_uri(redirect_uri, credentials, scope = nil)
-    headers = {'content-type' => 'application/x-www-form-urlencoded',
-        'accept' => 'application/json',
+    headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8,
         'authorization' => Http.basic_auth(@client_id, @client_secret) }
     body = Util.encode_form(credentials)
     reply = json_parse_reply(nil, *request(@target, :post, "/autologin", body, headers))

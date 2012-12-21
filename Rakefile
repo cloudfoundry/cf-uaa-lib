@@ -13,7 +13,6 @@
 require "rspec/core/rake_task"
 require "bundler/gem_tasks" # only available in bundler >= 1.0.15
 require "ci/reporter/rake/rspec"
-require "yard"
 
 ENV['CI_REPORTS'] = File.expand_path("spec_reports")
 COV_REPORTS = File.expand_path("coverage")
@@ -21,12 +20,6 @@ COV_REPORTS = File.expand_path("coverage")
 task :default => [:test]
 task :tests => [:test]
 task :spec => [:test]
-
-YARD::Rake::YardocTask.new do |t|
-  t.files   = ['lib/**/*.rb', '-', 'LICENSE.TXT', 'NOTICE.TXT']
-  t.options = ['--main', 'README.md', '--no-private',
-              '--title', 'Cloud Foundry UAA Client API']
-end
 
 RSpec::Core::RakeTask.new("test") do |t|
   t.rspec_opts = ["--format", "documentation", "--colour"]

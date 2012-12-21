@@ -46,8 +46,7 @@ class TokenCoder
 
   # Constructs a signed JWT.
   # @param token_body Contents of the token in any object that can be converted to JSON.
-  # @param skey (see #initialize)
-  # @param pkey  (see #initialize)
+  # @param options (see #initialize)
   # @return [String] a signed JWT token string in the form "xxxx.xxxxx.xxxx".
   def self.encode(token_body, options = {}, obsolete1 = nil, obsolete2 = nil)
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
@@ -78,9 +77,7 @@ class TokenCoder
   # The JWT header indicates what signature algorithm was used and the
   # corresponding key is used to verify the signature (if +verify+ is true).
   # @param [String] token A JWT token as returned by {TokenCoder.encode}
-  # @param skey (see #initialize)
-  # @param pkey  (see #initialize)
-  # @param [Boolean] verify
+  # @param options (see #initialize)
   # @return [Hash] the token contents
   def self.decode(token, options = {}, obsolete1 = nil, obsolete2 = nil)
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
@@ -112,17 +109,26 @@ class TokenCoder
 
   # Creates a new token en/decoder for a service that is associated with
   # the the audience_ids, the symmetrical token validation key, and the
-  # public and/or private keys. Parameters:
-  # @param [Array<String>, String] audience_ids An array or space separated
-  #   strings of values which indicate the token is intended for this service
-  #   instance. It will be compared with tokens as they are decoded to ensure
-  #   that the token was intended for this audience.
-  # @param [String] skey is used to sign and validate tokens using symmetrical
-  #   key algoruthms
-  # @param [String, File, OpenSSL::PKey::PKey] pkey may be a String, File in
-  #   PEM or DER formats. May include public and/or private key data. The
-  #   private key is used to sign tokens and the public key is used to
-  #   validate tokens.
+  # public and/or private keys.
+  # @param [Hash] options Supported options:
+  #   * :audience_ids [Array<String>, String] -- An array or space separated
+  #     string of values which indicate the token is intended for this service
+  #     instance. It will be compared with tokens as they are decoded to ensure
+  #     that the token was intended for this audience.
+  #   * :skey [String] -- used to sign and validate tokens using symmetrical
+  #     key algoruthms
+  #   * :pkey [String, File, OpenSSL::PKey::PKey] -- may be a String or File in
+  #     PEM or DER formats. May include public and/or private key data. The
+  #     private key is used to sign tokens and the public key is used to
+  #     validate tokens.
+  #   * :algorithm [String] -- Sets default used for encoding. May be HS256,
+  #     HS384, HS512, RS256, RS384, RS512, or none.
+  #   * :verify [String] -- Verifies signatures when decoding tokens. Defaults
+  #     to +true+.
+  # @note the TokenCoder instance must be configured with the appropriate
+  #   key material to support particular algorithm families and operations
+  #   -- i.e. :pkey must include a private key in order to sign tokens with
+  #   the RS algorithms.
   def initialize(options = {}, obsolete1 = nil, obsolete2 = nil)
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
       # deprecated: def initialize(audience_ids, skey, pkey = nil)
@@ -135,10 +141,8 @@ class TokenCoder
 
   # Encode a JWT token. Takes a hash of values to use as the token body.
   # Returns a signed token in JWT format (header, body, signature).
-  # Algorithm may be HS256, HS384, HS512, RS256, RS384, RS512, or none --
-  # assuming the TokenCoder instance is configured with the appropriate
-  # key -- i.e. pkey must include a private key for the RS algorithms.
   # @param token_body (see TokenCoder.encode)
+  # @param [String] algorithm -- overrides default. See {#initialize} for possible values.
   # @return (see TokenCoder.encode)
   def encode(token_body = {}, algorithm = nil)
     token_body[:aud] = @options[:audience_ids] if @options[:audience_ids] && !token_body[:aud] && !token_body['aud']

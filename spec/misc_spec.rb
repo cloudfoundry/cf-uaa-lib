@@ -29,7 +29,7 @@ describe Misc do
       url.should == "https://uaa.cloudfoundry.com/login"
       method.should == :get
       headers["content-type"].should be_nil
-      headers["accept"].should =~ /application\/json/
+      headers["accept"].gsub(/\s/, '').should =~ /application\/json;charset=utf-8/i
       [200, '{"commit_id":"12345","prompts":["one","two"]}', {"content-type" => "application/json"}]
     end
     result = Misc.server("https://uaa.cloudfoundry.com")

@@ -98,9 +98,8 @@ class Misc
   # @return [Hash]
   def self.password_strength(target, password)
     json_parse_reply(@key_style, *request(target, :post, '/password/score',
-        Util.encode_form(:password => password),
-        "content-type" => "application/x-www-form-urlencoded",
-        "accept" => "application/json"))
+        Util.encode_form(:password => password), "content-type" => Http::FORM_UTF8,
+        "accept" => Http::JSON_UTF8))
   end
 
 end

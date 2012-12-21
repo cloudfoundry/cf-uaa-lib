@@ -209,9 +209,8 @@ class Scim
     end
   end
 
-  # Gets id/name pairs for given names.
+  # Gets id/name pairs for given names. For naming attribute of each object type see {Scim}
   # @param type (see #add)
-  # @param [Array<String>] names. For naming attribute of each object type see {Scim}
   # @return [Array] array of name/id hashes for each object found
   def ids(type, *names)
     na = type_info(type, :name_attr)

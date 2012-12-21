@@ -71,19 +71,22 @@ module Http
         Base64.strict_encode64(str): [str].pack("m").gsub(/\n/, ''))
   end
 
+  JSON_UTF8 = "application/json;charset=utf-8"
+  FORM_UTF8 = "application/x-www-form-urlencoded;charset=utf-8"
+
   private
 
   def json_get(target, path = nil, style = nil, headers = {})
     raise ArgumentError unless style.nil? || style.is_a?(Symbol)
-    json_parse_reply(style, *http_get(target, path, headers.merge("accept" => "application/json")))
+    json_parse_reply(style, *http_get(target, path, headers.merge("accept" => JSON_UTF8)))
   end
 
   def json_post(target, path, body, headers = {})
-    http_post(target, path, Util.json(body), headers.merge("content-type" => "application/json"))
+    http_post(target, path, Util.json(body), headers.merge("content-type" => JSON_UTF8))
   end
 
   def json_put(target, path, body, headers = {})
-    http_put(target, path, Util.json(body), headers.merge("content-type" => "application/json"))
+    http_put(target, path, Util.json(body), headers.merge("content-type" => JSON_UTF8))
   end
 
   def json_parse_reply(style, status, body, headers)
