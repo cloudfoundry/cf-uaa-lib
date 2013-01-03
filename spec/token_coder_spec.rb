@@ -64,11 +64,16 @@ describe TokenCoder do
     result["foo"].should == "bar"
   end
 
-  it "encodes/decodes with 'none' signature" do
+  it "encodes/decodes with 'none' signature if explicitly accepted" do
     tkn = subject.encode(@tkn_body, 'none')
-    result = subject.decode("bEaReR #{tkn}")
+    result = TokenCoder.decode(tkn, :accept_algorithms => "none")
     result.should_not be_nil
     result["foo"].should == "bar"
+  end
+
+  it "rejects a token with 'none' signature by default" do
+    tkn = subject.encode(@tkn_body, 'none')
+    expect { TokenCoder.decode(tkn) }.to raise_exception(DecodeError)
   end
 
   it "raises an error if the signing algorithm is not supported" do

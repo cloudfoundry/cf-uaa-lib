@@ -41,6 +41,8 @@ class TokenCoder
     opts[:audience_ids] = Util.arglist(opts[:audience_ids])
     opts[:algorithm] = 'HS256' unless opts[:algorithm]
     opts[:verify] = true unless opts.key?(:verify)
+    opts[:accept_algorithms] = Util.arglist(opts[:accept_algorithms],
+        ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"])
     opts
   end
 
@@ -93,7 +95,10 @@ class TokenCoder
     signing_input = [header_segment, payload_segment].join('.')
     header = Util.json_decode64(header_segment)
     payload = Util.json_decode64(payload_segment, (:sym if options[:symbolize_keys]))
-    return payload if !options[:verify] || (algo = header["alg"]) == "none"
+    return payload unless options[:verify]
+    raise DecodeError, "Signature algorithm not accepted" unless
+        options[:accept_algorithms].include?(algo = header["alg"])
+    return payload if algo == 'none'
     signature = Util.decode64(crypto_segment)
     if ["HS256", "HS384", "HS512"].include?(algo)
       raise DecodeError, "Signature verification failed" unless
@@ -125,6 +130,9 @@ class TokenCoder
   #     HS384, HS512, RS256, RS384, RS512, or none.
   #   * :verify [String] -- Verifies signatures when decoding tokens. Defaults
   #     to +true+.
+  #   * :accept_algorithms [String, Array<String>] -- An Array or space separated
+  #     string of values which list what algorthms are accepted for token
+  #     signatures. Defaults to all possible values of :algorithm except 'none'.
   # @note the TokenCoder instance must be configured with the appropriate
   #   key material to support particular algorithm families and operations
   #   -- i.e. :pkey must include a private key in order to sign tokens with

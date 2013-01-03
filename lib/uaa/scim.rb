@@ -94,7 +94,8 @@ class Scim
   #   authorization header. For OAuth2 with JWT tokens this would be something
   #   like "bearer xxxx.xxxx.xxxx". The {TokenInfo} class provides
   #   {TokenInfo#auth_header} for this purpose.
-  # @param style (see Util.hash_key)
+  # @param [Hash] options can be
+  #   * +:symbolize_keys+, if true, returned hash keys are symbols.
   def initialize(target, auth_header, options = {})
     @target, @auth_header = target, auth_header
     @key_style = options[:symbolize_keys] ? :downsym : :down
