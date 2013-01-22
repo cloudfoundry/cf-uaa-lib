@@ -101,6 +101,12 @@ class Scim
     @key_style = options[:symbolize_keys] ? :downsym : :down
   end
 
+  # Convenience method to get the naming attribute, e.g. userName for user,
+  # displayName for group, client_id for client.
+  # @param type (see #add)
+  # @return [String] naming attribute
+  def name_attr(type) type_info(type, :name_attr) end
+
   # Creates a SCIM resource.
   # @param [Symbol] type can be :user, :group, :client, :user_id.
   # @param [Hash] info converted to json and sent to the scim endpoint. For schema of
@@ -159,13 +165,18 @@ class Scim
       query['attributes'] = Util.strlist(attrs, ",")
     end
     qstr = query.empty?? '': "?#{Util.encode_form(query)}"
-    info = json_get(@target, "#{type_info(type, :path)}#{qstr}", @key_style, 'authorization' => @auth_header)
+    info = json_get(@target, "#{type_info(type, :path)}#{qstr}",
+        @key_style,  'authorization' => @auth_header)
     unless info.is_a?(Hash) && info[rk = jkey(:resources)].is_a?(Array)
 
-      # hide client endpoints that are not scim compatible
+      # hide client endpoints that are not yet scim compatible
       if type == :client && info.is_a?(Hash)
-        info.each { |k, v| fake_client_id(v) }
-        return {rk => info.values }
+        info = info.each{ |k, v| fake_client_id(v) }.values
+        if m = /^client_id\s+eq\s+"([^"]+)"$/i.match(query['filter'])
+          idk = jkey(:client_id)
+          info = info.select { |c| c[idk].casecmp(m[1]) == 0 }
+        end
+        return {rk => info}
       end
 
       raise BadResponse, "invalid reply to #{type} query of #{@target}"
@@ -260,7 +271,7 @@ class Scim
 
   # Change client secret.
   # * For a client to change its own secret, the token in @auth_header must contain
-  #   "uaa.admin,client.secret" scope and the correct +old_secret+ must be given.
+  #   "client.secret" scope and the correct +old_secret+ must be given.
   # * For an admin to set a client secret, the token in @auth_header must contain
   #   "uaa.admin" scope.
   # @see https://github.com/cloudfoundry/uaa/blob/master/docs/UAA-APIs.rst#change-client-secret-put-oauthclientsclient_idsecret
