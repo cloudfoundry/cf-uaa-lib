@@ -26,9 +26,6 @@ class NotFound < UAAError; end
 # Indicates a syntax error in a response from the UAA, e.g. missing required response field.
 class BadResponse < UAAError; end
 
-# Indicates a token is malformed or expired.
-class InvalidToken < UAAError; end
-
 # Indicates an error from the http client stack.
 class HTTPException < UAAError; end
 
@@ -39,6 +36,9 @@ class TargetError < UAAError
     @info = error_info
   end
 end
+
+# Indicates a token is malformed or expired.
+class InvalidToken < TargetError; end
 
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
@@ -91,7 +91,7 @@ module Http
 
   def json_parse_reply(style, status, body, headers)
     raise ArgumentError unless style.nil? || style.is_a?(Symbol)
-    unless [200, 201, 204, 400, 401, 403].include? status
+    unless [200, 201, 204, 400, 401, 403, 409].include? status
       raise (status == 404 ? NotFound : BadResponse), "invalid status response: #{status}"
     end
     if body && !body.empty? && (status == 204 || headers.nil? ||
@@ -99,9 +99,9 @@ module Http
       raise BadResponse, "received invalid response content or type"
     end
     parsed_reply = Util.json_parse(body, style)
-  if status >= 400
+    if status >= 400
       raise parsed_reply && parsed_reply["error"] == "invalid_token" ?
-          InvalidToken : TargetError.new(parsed_reply), "error response"
+          InvalidToken.new(parsed_reply) : TargetError.new(parsed_reply), "error response"
     end
     parsed_reply
   rescue DecodeError
@@ -133,8 +133,7 @@ module Http
     [status, body, headers]
 
   rescue Exception => e
-    e.message.replace "Target #{target}, #{e.message}"
-    logger.debug { "<---- no response due to exception: #{e}" }
+    logger.debug { "<---- no response due to exception: #{e.inspect}" }
     raise e
   end
 

@@ -16,6 +16,17 @@ require "uaa/util"
 
 module CF::UAA
 
+# this code does not support the given token signature algorithim
+class SignatureNotSupported < DecodeError; end
+
+# this instance policy does not accept the given token signature algorithim
+class SignatureNotAccepted < DecodeError; end
+
+class InvalidSignature < DecodeError; end
+class InvalidTokenFormat < DecodeError; end
+class TokenExpired < AuthError; end
+class InvalidAudience < AuthError; end
+
 # This class is for OAuth Resource Servers.
 # Resource Servers get tokens and need to validate and decode them,
 # but they do not obtain them from the Authorization Server. This
@@ -68,7 +79,7 @@ class TokenCoder
     elsif algo == "none"
       sig = ""
     else
-      raise ArgumentError, "unsupported signing method"
+      raise SignatureNotSupported, "unsupported signing method"
     end
     segments << Util.encode64(sig)
     segments.join('.')
@@ -90,24 +101,24 @@ class TokenCoder
     end
     options = normalize_options(options)
     segments = token.split('.')
-    raise DecodeError, "Not enough or too many segments" unless [2,3].include? segments.length
+    raise InvalidTokenFormat, "Not enough or too many segments" unless [2,3].include? segments.length
     header_segment, payload_segment, crypto_segment = segments
     signing_input = [header_segment, payload_segment].join('.')
     header = Util.json_decode64(header_segment)
     payload = Util.json_decode64(payload_segment, (:sym if options[:symbolize_keys]))
     return payload unless options[:verify]
-    raise DecodeError, "Signature algorithm not accepted" unless
+    raise SignatureNotAccepted, "Signature algorithm not accepted" unless
         options[:accept_algorithms].include?(algo = header["alg"])
     return payload if algo == 'none'
     signature = Util.decode64(crypto_segment)
     if ["HS256", "HS384", "HS512"].include?(algo)
-      raise DecodeError, "Signature verification failed" unless
+      raise InvalidSignature, "Signature verification failed" unless
           signature == OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input)
     elsif ["RS256", "RS384", "RS512"].include?(algo)
-      raise DecodeError, "Signature verification failed" unless
+      raise InvalidSignature, "Signature verification failed" unless
           options[:pkey].verify(init_digest(algo), signature, signing_input)
     else
-      raise DecodeError, "Algorithm not supported"
+      raise SignatureNotSupported, "Algorithm not supported"
     end
     payload
   end
@@ -166,16 +177,16 @@ class TokenCoder
   # @return (see TokenCoder.decode)
   def decode(auth_header)
     unless auth_header && (tkn = auth_header.split(' ')).length == 2 && tkn[0] =~ /^bearer$/i
-      raise DecodeError, "invalid authentication header: #{auth_header}"
+      raise InvalidTokenFormat, "invalid authentication header: #{auth_header}"
     end
     reply = self.class.decode(tkn[1], @options)
     auds = Util.arglist(reply[:aud] || reply['aud'])
     if @options[:audience_ids] && (!auds || (auds & @options[:audience_ids]).empty?)
-      raise AuthError, "invalid audience: #{auds}"
+      raise InvalidAudience, "invalid audience: #{auds}"
     end
     exp = reply[:exp] || reply['exp']
     unless exp.is_a?(Integer) && exp > Time.now.to_i
-      raise AuthError, "token expired"
+      raise TokenExpired, "token expired"
     end
     reply
   end

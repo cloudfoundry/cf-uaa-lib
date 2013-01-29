@@ -14,6 +14,6 @@
 # Cloud Foundry namespace
 module CF
   module UAA
-    VERSION = "1.3.5"
+    VERSION = "1.3.6"
   end
 end

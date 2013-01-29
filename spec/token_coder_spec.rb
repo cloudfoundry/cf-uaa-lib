@@ -26,9 +26,9 @@ describe TokenCoder do
     @tkn_secret = "test_secret"
   end
 
-  it "raises a decode error if the given auth header is bad" do
-    expect { subject.decode(nil) }.to raise_exception(DecodeError)
-    expect { subject.decode("one two three") }.to raise_exception(DecodeError)
+  it "raises error if the given auth header is bad" do
+    expect { subject.decode(nil) }.to raise_exception(InvalidTokenFormat)
+    expect { subject.decode("one two three") }.to raise_exception(InvalidTokenFormat)
   end
 
   it "encodes/decodes a token using a symmetrical key" do
@@ -73,37 +73,40 @@ describe TokenCoder do
 
   it "rejects a token with 'none' signature by default" do
     tkn = subject.encode(@tkn_body, 'none')
-    expect { TokenCoder.decode(tkn) }.to raise_exception(DecodeError)
+    expect { TokenCoder.decode(tkn) }.to raise_exception(SignatureNotAccepted)
   end
 
   it "raises an error if the signing algorithm is not supported" do
-    expect { subject.encode(@tkn_body, 'baz') }.to raise_exception(ArgumentError)
+    expect { subject.encode(@tkn_body, 'baz') }.to raise_exception(SignatureNotSupported)
   end
 
-  it "raises an auth error if the token is for another resource server" do
+  it "raises an error if the token is for another resource server" do
     tkn = subject.encode({'aud' => ["other_resource"], 'foo' => "bar"})
-    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(AuthError)
+    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(InvalidAudience)
   end
 
-  it "raises a decode error if the token is signed by an unknown signing key" do
+  it "raises an error if the token is signed by an unknown signing key" do
     other = TokenCoder.new(:audience_ids => "test_resource", :skey => "other_secret")
     tkn = other.encode(@tkn_body)
-    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
+    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(InvalidSignature)
   end
 
-  it "raises a decode error if the token is an unknown signing algorithm" do
+  it "raises an error if the token is an unknown signing algorithm" do
     segments = [Util.json_encode64(:typ => "JWT", :alg =>"BADALGO")]
     segments << Util.json_encode64(@tkn_body)
     segments << Util.encode64("BADSIG")
     tkn = segments.join('.')
-    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
+    tc = TokenCoder.new(:audience_ids => "test_resource",
+        :skey => "test_secret", :pkey => OpenSSL::PKey::RSA.generate(512),
+        :accept_algorithms => "BADALGO")
+    expect { tc.decode("bEaReR #{tkn}") }.to raise_exception(SignatureNotSupported)
   end
 
-  it "raises a decode error if the token is malformed" do
+  it "raises an error if the token is malformed" do
     tkn = "one.two.three.four"
-    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
+    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(InvalidTokenFormat)
     tkn = "onlyone"
-    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
+    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(InvalidTokenFormat)
   end
 
   it "raises a decode error if a token segment is malformed" do
@@ -114,9 +117,9 @@ describe TokenCoder do
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
 
-  it "raises an auth error if the token has expired" do
+  it "raises an error if the token has expired" do
     tkn = subject.encode({'foo' => "bar", 'exp' => Time.now.to_i - 60 })
-    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(AuthError)
+    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(TokenExpired)
   end
 
   it "decodes a token without validation" do
