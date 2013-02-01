@@ -91,6 +91,45 @@ describe TokenCoder do
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(InvalidSignature)
   end
 
+  it "raises an error if the token is public-key signed and we try to decode with symmetric key" do
+    pem = <<-DATA.gsub(/^ +/, '')
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIBOwIBAAJBAN+5O6n85LSs/fj46Ht1jNbc5e+3QX+suxVPJqICvuV6sIukJXXE
+      zfblneN2GeEVqgeNvglAU9tnm3OIKzlwM5UCAwEAAQJAEhJ2fV7OYsHuqiQBM6fl
+      Pp4NfPXCtruPSUNhjYjHPuYpnqo6cpuUNAzRvqAdDkJJsPCPt1E5AWOYUYOmLE+d
+      AQIhAO/XxMb9GrTDyqJDvS8T1EcJpLCaUIReae0jSg1RnBrhAiEA7st6WLmOyTxX
+      JgLcO6LUfW6RsE3pgi9NGL25P3eOAzUCIQDUFKi1CJR36XWh/GIqYc9grX9KhnnS
+      QqZKAd12X4a5IQIhAMTOJKaNP/Xwai7kupfX6mL6Rs5UWDg4PcU/UDbTlNJlAiBv
+      2yrlT5h164jGCxqe7++1kIl4ollFCgz6QJ8lcmb/2Q==
+      -----END RSA PRIVATE KEY-----
+    DATA
+    coder = TokenCoder.new(:audience_ids => "test_resource", :pkey => pem)
+    coder2 = TokenCoder.new(:audience_ids => "test_resource", :skey => 'randomness')
+
+    tkn = coder.encode(@tkn_body, 'RS256')
+
+    expect { coder2.decode("bEaReR #{tkn}") }.to raise_exception(InvalidSignature)
+  end
+
+  it "raises an error if the token is symmetric-key signed and we try to decode with a public key" do
+    pem = <<-DATA.gsub(/^ +/, '')
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIBOwIBAAJBAN+5O6n85LSs/fj46Ht1jNbc5e+3QX+suxVPJqICvuV6sIukJXXE
+      zfblneN2GeEVqgeNvglAU9tnm3OIKzlwM5UCAwEAAQJAEhJ2fV7OYsHuqiQBM6fl
+      Pp4NfPXCtruPSUNhjYjHPuYpnqo6cpuUNAzRvqAdDkJJsPCPt1E5AWOYUYOmLE+d
+      AQIhAO/XxMb9GrTDyqJDvS8T1EcJpLCaUIReae0jSg1RnBrhAiEA7st6WLmOyTxX
+      JgLcO6LUfW6RsE3pgi9NGL25P3eOAzUCIQDUFKi1CJR36XWh/GIqYc9grX9KhnnS
+      QqZKAd12X4a5IQIhAMTOJKaNP/Xwai7kupfX6mL6Rs5UWDg4PcU/UDbTlNJlAiBv
+      2yrlT5h164jGCxqe7++1kIl4ollFCgz6QJ8lcmb/2Q==
+      -----END RSA PRIVATE KEY-----
+    DATA
+    coder = TokenCoder.new(:audience_ids => "test_resource", :pkey => pem)
+    coder2 = TokenCoder.new(:audience_ids => "test_resource", :skey => 'randomness')
+    tkn = coder2.encode(@tkn_body)
+
+    expect { coder.decode("bEaReR #{tkn}") }.to raise_exception(InvalidSignature)
+  end
+
   it "raises an error if the token is an unknown signing algorithm" do
     segments = [Util.json_encode64(:typ => "JWT", :alg =>"BADALGO")]
     segments << Util.json_encode64(@tkn_body)
