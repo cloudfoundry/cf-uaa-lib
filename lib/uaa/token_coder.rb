@@ -113,10 +113,10 @@ class TokenCoder
     signature = Util.decode64(crypto_segment)
     if ["HS256", "HS384", "HS512"].include?(algo)
       raise InvalidSignature, "Signature verification failed" unless
-          signature == OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input)
+          options[:skey] && signature == OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input)
     elsif ["RS256", "RS384", "RS512"].include?(algo)
       raise InvalidSignature, "Signature verification failed" unless
-          options[:pkey].verify(init_digest(algo), signature, signing_input)
+          options[:pkey] && options[:pkey].verify(init_digest(algo), signature, signing_input)
     else
       raise SignatureNotSupported, "Algorithm not supported"
     end
