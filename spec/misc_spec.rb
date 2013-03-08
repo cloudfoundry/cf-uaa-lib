@@ -37,6 +37,18 @@ describe Misc do
     result["commit_id"].should_not be_nil
   end
 
+  it "gets UAA target" do
+    Misc.set_request_handler do |url, method, body, headers|
+      url.should == "https://login.cloudfoundry.com/login"
+      method.should == :get
+      headers["content-type"].should be_nil
+      headers["accept"].gsub(/\s/, '').should =~ /application\/json;charset=utf-8/i
+      [200, '{"links":{"uaa":"https://uaa.cloudfoundry.com"},"prompts":["one","two"]}', {"content-type" => "application/json"}]
+    end
+    result = Misc.discover_uaa("https://login.cloudfoundry.com")
+    result.should == "https://uaa.cloudfoundry.com"
+  end
+
 end
 
 end

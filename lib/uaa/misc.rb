@@ -60,6 +60,21 @@ class Misc
     raise BadResponse, "Invalid response from target #{target}"
   end
 
+  # Gets a base url for the associated UAA from the target server by inspecting the
+  # links returned from its info endpoint.
+  # @param [String] target The base URL of the server. For example the target could
+  #   be {https://login.cloudfoundry.com}, {https://uaa.cloudfoundry.com}, or
+  #   {http://localhost:8080/uaa}.
+  # @return [String] url of UAA (or the target itself if it didn't provide a response)
+  def self.discover_uaa(target)
+    info = server(target)
+    if info['links'] && info['links']['uaa']
+      info['links']['uaa']
+    else
+      target
+    end
+  end
+
   # Gets the key from the server that is used to validate token signatures. If
   # the server is configured to use a symetric key, the caller must authenticate
   # by providing a a +client_id+ and +client_secret+. If the server
