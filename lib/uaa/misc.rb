@@ -68,11 +68,10 @@ class Misc
   # @return [String] url of UAA (or the target itself if it didn't provide a response)
   def self.discover_uaa(target)
     info = server(target)
-    if info['links'] && info['links']['uaa']
-      info['links']['uaa']
-    else
-      target
-    end
+    links = info['links'] || info[:links]
+    uaa = links['uaa'] || links[:uaa]
+
+    uaa || target
   end
 
   # Gets the key from the server that is used to validate token signatures. If
