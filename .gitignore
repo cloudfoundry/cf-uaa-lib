@@ -6,3 +6,4 @@ doc/
 coverage/
 spec_reports/
 vendor/
+.idea
