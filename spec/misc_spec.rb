@@ -16,39 +16,70 @@ require 'uaa/misc'
 
 module CF::UAA
 
-describe Misc do
+  describe Misc do
 
-  include SpecHelper
+    include SpecHelper
 
-  before :all do
-    #Util.default_logger(:trace)
-  end
-
-  it "gets server info" do
-    Misc.set_request_handler do |url, method, body, headers|
-      url.should == "https://uaa.cloudfoundry.com/login"
-      method.should == :get
-      headers["content-type"].should be_nil
-      headers["accept"].gsub(/\s/, '').should =~ /application\/json;charset=utf-8/i
-      [200, '{"commit_id":"12345","prompts":["one","two"]}', {"content-type" => "application/json"}]
+    before :all do
+      #Util.default_logger(:trace)
     end
-    result = Misc.server("https://uaa.cloudfoundry.com")
-    result["prompts"].should_not be_nil
-    result["commit_id"].should_not be_nil
-  end
 
-  it "gets UAA target" do
-    Misc.set_request_handler do |url, method, body, headers|
-      url.should == "https://login.cloudfoundry.com/login"
-      method.should == :get
-      headers["content-type"].should be_nil
-      headers["accept"].gsub(/\s/, '').should =~ /application\/json;charset=utf-8/i
-      [200, '{"links":{"uaa":"https://uaa.cloudfoundry.com"},"prompts":["one","two"]}', {"content-type" => "application/json"}]
+    before do
+      Misc.set_request_handler do |url, method, body, headers|
+        url.should == target_url
+        method.should == :get
+        headers["content-type"].should be_nil
+        headers["accept"].gsub(/\s/, '').should =~ /application\/json;charset=utf-8/i
+        [200, response_body, {"content-type" => "application/json"}]
+      end
     end
-    result = Misc.discover_uaa("https://login.cloudfoundry.com")
-    result.should == "https://uaa.cloudfoundry.com"
+
+    describe "getting server info" do
+      let(:target_url) { "https://uaa.cloudfoundry.com/login" }
+      let(:response_body) { '{"commit_id":"12345","prompts":["one","two"]}' }
+
+      it "gets server info" do
+        result = Misc.server("https://uaa.cloudfoundry.com")
+        result["prompts"].should_not be_nil
+        result["commit_id"].should_not be_nil
+      end
+
+      context "with symbol keys" do
+        around do |example|
+          CF::UAA::Misc.symbolize_keys = true
+          example.call
+          CF::UAA::Misc.symbolize_keys = false
+        end
+
+        it "gets server info" do
+          result = Misc.server("https://uaa.cloudfoundry.com")
+          result[:prompts].should_not be_nil
+          result[:commit_id].should_not be_nil
+        end
+      end
+    end
+
+    describe "getting UAA target" do
+      let(:target_url) { "https://login.cloudfoundry.com/login" }
+      let(:response_body) { '{"links":{"uaa":"https://uaa.cloudfoundry.com"},"prompts":["one","two"]}' }
+
+      it "gets UAA target" do
+        result = Misc.discover_uaa("https://login.cloudfoundry.com")
+        result.should == "https://uaa.cloudfoundry.com"
+      end
+
+      context "with symbol keys" do
+        around do |example|
+          CF::UAA::Misc.symbolize_keys = true
+          example.call
+          CF::UAA::Misc.symbolize_keys = false
+        end
+
+        it "gets UAA target" do
+          result = Misc.discover_uaa("https://login.cloudfoundry.com")
+          result.should == "https://uaa.cloudfoundry.com"
+        end
+      end
+    end
   end
-
-end
-
 end
