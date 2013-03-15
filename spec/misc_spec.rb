@@ -68,6 +68,15 @@ module CF::UAA
         result.should == "https://uaa.cloudfoundry.com"
       end
 
+      context "when there is no 'links' key present" do
+        let(:response_body) { '{ "prompts" : ["one","two"]} ' }
+
+        it "returns the login url" do
+          result = Misc.discover_uaa("https://login.cloudfoundry.com")
+          result.should == "https://login.cloudfoundry.com"
+        end
+      end
+
       context "with symbol keys" do
         around do |example|
           CF::UAA::Misc.symbolize_keys = true

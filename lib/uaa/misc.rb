@@ -69,7 +69,7 @@ class Misc
   def self.discover_uaa(target)
     info = server(target)
     links = info['links'] || info[:links]
-    uaa = links['uaa'] || links[:uaa]
+    uaa = links && (links['uaa'] || links[:uaa])
 
     uaa || target
   end
