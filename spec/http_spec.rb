@@ -20,7 +20,6 @@ module CF::UAA
 describe Http do
 
   include Http
-  include SpecHelper
 
   it "sets a request handler" do
     set_request_handler do |url, method, body, headers|

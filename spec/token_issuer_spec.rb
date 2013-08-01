@@ -19,8 +19,6 @@ module CF::UAA
 
 describe TokenIssuer do
 
-  include SpecHelper
-
   before :all do
     #Util.default_logger(:trace)
     @issuer = TokenIssuer.new("http://test.uaa.target", "test_client", "test_secret")

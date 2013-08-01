@@ -12,7 +12,7 @@
 #++
 
 require "uaa/version"
-require "uaa/misc"
+require "uaa/info"
 require "uaa/token_issuer"
 require "uaa/token_coder"
 require "uaa/scim"

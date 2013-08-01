@@ -23,6 +23,3 @@ if ENV['COVERAGE']
 end
 
 require 'rspec'
-
-module SpecHelper
-end

@@ -17,15 +17,28 @@ module CF::UAA
 
 # Provides interfaces to various UAA endpoints that are not in the context
 # of an overall class of operations like SCIM resources or OAuth2 tokens.
-class Misc
+class Info
+  include Http
 
-  class << self
-    include Http
+  attr_accessor :target
+  attr_reader :key_style
+
+  # @param [String] target The base URL of the server. For example the target could
+  #   be {https://login.cloudfoundry.com}, {https://uaa.cloudfoundry.com}, or
+  #   {http://localhost:8080/uaa}.
+  # @param [Hash] options can be
+  #   * +:symbolize_keys+, If set to true, response hashes will have symbols for their keys, otherwise
+  #     string keys are returned.
+  def initialize(target, options = {})
+    self.target = target
+    self.symbolize_keys = options[:symbolize_keys]
   end
 
   # sets whether the keys in returned hashes should be symbols.
   # @return [Boolean] the new state
-  def self.symbolize_keys=(bool) !!(@key_style = bool ? :sym : nil) end
+  def symbolize_keys=(bool)
+    @key_style = bool ? :sym : nil
+  end
 
   # Gets information about the user authenticated by the token in the
   # +auth_header+. It GETs from the +target+'s +/userinfo+ endpoint and
@@ -36,38 +49,32 @@ class Misc
   # @param (see Misc.server)
   # @param [String] auth_header see {TokenInfo#auth_header}
   # @return [Hash]
-  def self.whoami(target, auth_header)
-    json_get(target, "/userinfo?schema=openid", @key_style, "authorization" => auth_header)
+  def whoami(auth_header)
+    json_get(target, "/userinfo?schema=openid", key_style, "authorization" => auth_header)
   end
 
   # Gets various monitoring and status variables from the server.
   # Authenticates using +name+ and +pwd+ for basic authentication.
   # @param (see Misc.server)
   # @return [Hash]
-  def self.varz(target, name, pwd)
-    json_get(target, "/varz", @key_style, "authorization" => Http.basic_auth(name, pwd))
+  def varz(name, pwd)
+    json_get(target, "/varz", key_style, "authorization" => Http.basic_auth(name, pwd))
   end
 
   # Gets basic information about the target server, including version number,
   # commit ID, and links to API endpoints.
-  # @param [String] target The base URL of the server. For example the target could
-  #   be {https://login.cloudfoundry.com}, {https://uaa.cloudfoundry.com}, or
-  #   {http://localhost:8080/uaa}.
   # @return [Hash]
-  def self.server(target)
-    reply = json_get(target, '/login', @key_style)
+  def server
+    reply = json_get(target, '/login', key_style)
     return reply if reply && (reply[:prompts] || reply['prompts'])
     raise BadResponse, "Invalid response from target #{target}"
   end
 
   # Gets a base url for the associated UAA from the target server by inspecting the
   # links returned from its info endpoint.
-  # @param [String] target The base URL of the server. For example the target could
-  #   be {https://login.cloudfoundry.com}, {https://uaa.cloudfoundry.com}, or
-  #   {http://localhost:8080/uaa}.
   # @return [String] url of UAA (or the target itself if it didn't provide a response)
-  def self.discover_uaa(target)
-    info = server(target)
+  def discover_uaa
+    info = server
     links = info['links'] || info[:links]
     uaa = links && (links['uaa'] || links[:uaa])
 
@@ -81,10 +88,10 @@ class Misc
   # public key and +client_id+ must be nil.
   # @param (see Misc.server)
   # @return [Hash]
-  def self.validation_key(target, client_id = nil, client_secret = nil)
+  def validation_key(client_id = nil, client_secret = nil)
     hdrs = client_id && client_secret ?
         { "authorization" => Http.basic_auth(client_id, client_secret)} : {}
-    json_get(target, "/token_key", @key_style, hdrs)
+    json_get(target, "/token_key", key_style, hdrs)
   end
 
   # Sends +token+ to the server to validate and decode. Authenticates with
@@ -96,9 +103,9 @@ class Misc
   #   also {TokenInfo}.
   # @param [String] token_type as retrieved by {TokenIssuer}. See {TokenInfo}.
   # @return [Hash] contents of the token
-  def self.decode_token(target, client_id, client_secret, token, token_type = "bearer", audience_ids = nil)
+  def decode_token(client_id, client_secret, token, token_type = "bearer", audience_ids = nil)
     reply = json_get(target, "/check_token?token_type=#{token_type}&token=#{token}",
-        @key_style, "authorization" => Http.basic_auth(client_id, client_secret))
+        key_style, "authorization" => Http.basic_auth(client_id, client_secret))
     auds = Util.arglist(reply[:aud] || reply['aud'])
     if audience_ids && (!auds || (auds & audience_ids).empty?)
       raise AuthError, "invalid audience: #{auds.join(' ')}"
@@ -110,8 +117,8 @@ class Misc
   # an indication of what strength is required.
   # @param (see Misc.server)
   # @return [Hash]
-  def self.password_strength(target, password)
-    json_parse_reply(@key_style, *request(target, :post, '/password/score',
+  def password_strength(password)
+    json_parse_reply(key_style, *request(target, :post, '/password/score',
         Util.encode_form(:password => password), "content-type" => Http::FORM_UTF8,
         "accept" => Http::JSON_UTF8))
   end

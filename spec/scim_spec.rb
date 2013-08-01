@@ -18,8 +18,6 @@ module CF::UAA
 
 describe Scim do
 
-  include SpecHelper
-
   before :all do
     #Util.default_logger(:trace)
     @authheader, @target = "bEareR xyz", "https://test.target"
