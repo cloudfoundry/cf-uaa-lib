@@ -109,6 +109,8 @@ class TokenIssuer
     @target, @client_id, @client_secret = target, client_id, client_secret
     @token_target = options[:token_target] || target
     @key_style = options[:symbolize_keys] ? :sym : nil
+    self.http_proxy = options[:http_proxy]
+    self.https_proxy = options[:https_proxy]
   end
 
   # Allows an app to discover what credentials are required for

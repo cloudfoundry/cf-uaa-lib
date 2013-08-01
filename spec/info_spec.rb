@@ -33,6 +33,15 @@ module CF::UAA
       end
     end
 
+    describe "initialize" do
+      let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com'} }
+
+      it "sets proxy information" do
+        uaa_info.http_proxy.should == 'http-proxy.com'
+        uaa_info.https_proxy.should == 'https-proxy.com'
+      end
+    end
+
     describe "getting server info" do
       let(:target_url) { "https://login.cloudfoundry.com/login" }
       let(:response_body) { '{"commit_id":"12345","prompts":["one","two"]}' }

@@ -19,12 +19,23 @@ module CF::UAA
 
 describe TokenIssuer do
 
-  before :all do
+  let(:options) { {} }
+
+  before do
     #Util.default_logger(:trace)
-    @issuer = TokenIssuer.new("http://test.uaa.target", "test_client", "test_secret")
+    @issuer = TokenIssuer.new("http://test.uaa.target", "test_client", "test_secret", options)
   end
 
   subject { @issuer }
+
+  describe "initialize" do
+    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com'} }
+
+    it "sets proxy information" do
+      subject.http_proxy.should == 'http-proxy.com'
+      subject.https_proxy.should == 'https-proxy.com'
+    end
+  end
 
   context "with client credentials grant" do
 

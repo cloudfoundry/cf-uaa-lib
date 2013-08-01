@@ -17,11 +17,12 @@ require 'uaa/scim'
 module CF::UAA
 
 describe Scim do
+  let(:options) { {} }
 
-  before :all do
+  before do
     #Util.default_logger(:trace)
     @authheader, @target = "bEareR xyz", "https://test.target"
-    @scim = Scim.new(@target, @authheader)
+    @scim = Scim.new(@target, @authheader, options)
   end
 
   subject { @scim }
@@ -32,6 +33,15 @@ describe Scim do
     headers["accept"].should =~ /application\/json/ if accept == :json
     headers["accept"].should be_nil unless accept
     headers["authorization"].should =~ /^(?i:bearer)\s+xyz$/
+  end
+
+  describe "initialize" do
+    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com'} }
+
+    it "sets proxy information" do
+      subject.http_proxy.should == 'http-proxy.com'
+      subject.https_proxy.should == 'https-proxy.com'
+    end
   end
 
   it "adds an object" do

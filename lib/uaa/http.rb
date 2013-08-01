@@ -14,6 +14,7 @@
 require 'base64'
 require 'net/http'
 require 'uaa/util'
+require 'uaa/proxy_options'
 
 module CF::UAA
 
@@ -42,6 +43,13 @@ class InvalidToken < TargetError; end
 
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
+  include ProxyOptions
+
+  def self.included(base)
+    base.class_eval do
+      attr_accessor :http_proxy, :https_proxy
+    end
+  end
 
   # Sets the current logger instance to recieve error messages.
   # @param [Logger] logr
@@ -144,15 +152,7 @@ module Http
     uri = URI.parse(url)
     req = reqtype.new(uri.request_uri)
     headers.each { |k, v| req[k] = v }
-    http_key = "#{uri.scheme}://#{uri.host}:#{uri.port}"
-    @http_cache ||= {}
-    unless http = @http_cache[http_key]
-      @http_cache[http_key] = http = Net::HTTP.new(uri.host, uri.port)
-      if uri.is_a?(URI::HTTPS)
-        http.use_ssl = true
-        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-      end
-    end
+    http = http_request(uri)
     reply, outhdrs = http.request(req, body), {}
     reply.each_header { |k, v| outhdrs[k] = v }
     [reply.code.to_i, reply.body, outhdrs]
@@ -161,6 +161,21 @@ module Http
     raise BadTarget, "error: #{e.message}"
   rescue Net::HTTPBadResponse => e
     raise HTTPException, "HTTP exception: #{e.class}: #{e}"
+  end
+
+  def http_request(uri)
+    cache_key = URI.join(uri.to_s, "/")
+    @http_cache ||= {}
+    return @http_cache[cache_key] if @http_cache[cache_key]
+
+    http = Net::HTTP.new(uri.host, uri.port, *proxy_options_for(uri))
+
+    if uri.is_a?(URI::HTTPS)
+      http.use_ssl = true
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    end
+
+    @http_cache[cache_key] = http
   end
 
 end
