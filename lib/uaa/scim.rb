@@ -99,6 +99,8 @@ class Scim
   def initialize(target, auth_header, options = {})
     @target, @auth_header = target, auth_header
     @key_style = options[:symbolize_keys] ? :downsym : :down
+    self.http_proxy = options[:http_proxy]
+    self.https_proxy = options[:https_proxy]
   end
 
   # Convenience method to get the naming attribute, e.g. userName for user,
