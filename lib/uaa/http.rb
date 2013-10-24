@@ -152,7 +152,7 @@ module Http
 
   def net_http_request(url, method, body, headers)
     raise ArgumentError unless reqtype = {:delete => Net::HTTP::Delete,
-        :get => Net::HTTP::Get, :post => Net::HTTP::Post, :put => Net::HTTP::Put}[method]
+        :get => Net::HTTP::Get, :post => Net::HTTP::Post, :put => Net::HTTP::Put, :patch => Net::HTTP::Patch}[method]
     headers["content-length"] = body.length if body
     uri = URI.parse(url)
     req = reqtype.new(uri.request_uri)
