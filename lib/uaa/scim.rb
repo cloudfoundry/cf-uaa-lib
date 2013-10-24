@@ -148,6 +148,24 @@ class Scim
     type == :client && !reply ? get(type, info['client_id']): reply
   end
 
+  # Modifies the contents of a SCIM object.
+  # @param (see #add)
+  # @return (see #add)
+  def patch(type, info)
+    path, info = type_info(type, :path), force_case(info)
+    ida = type == :client ? 'client_id' : 'id'
+    raise ArgumentError, "info must include #{ida}" unless id = info[ida]
+    hdrs = {'authorization' => @auth_header}
+    if info && info['meta'] && (etag = info['meta']['version'])
+      hdrs.merge!('if-match' => etag)
+    end
+    reply = json_parse_reply(@key_style,
+        *json_patch(@target, "#{path}/#{URI.encode(id)}", info, hdrs))
+
+    # hide client endpoints that are not quite scim compatible
+    type == :client && !reply ? get(type, info['client_id']): reply
+  end
+
   # Gets a set of attributes for each object that matches a given filter.
   # @param (see #add)
   # @param [Hash] query may contain the following keys:

@@ -97,6 +97,10 @@ module Http
     http_put(target, path, Util.json(body), headers.merge("content-type" => JSON_UTF8))
   end
 
+  def json_patch(target, path, body, headers = {})
+    http_patch(target, path, Util.json(body), headers.merge("content-type" => JSON_UTF8))
+  end
+
   def json_parse_reply(style, status, body, headers)
     raise ArgumentError unless style.nil? || style.is_a?(Symbol)
     unless [200, 201, 204, 400, 401, 403, 409].include? status
@@ -119,6 +123,7 @@ module Http
   def http_get(target, path = nil, headers = {}) request(target, :get, path, nil, headers) end
   def http_post(target, path, body, headers = {}) request(target, :post, path, body, headers) end
   def http_put(target, path, body, headers = {}) request(target, :put, path, body, headers) end
+  def http_patch(target, path, body, headers = {}) request(target, :patch, path, body, headers) end
 
   def http_delete(target, path, authorization)
     status = request(target, :delete, path, nil, "authorization" => authorization)[0]
