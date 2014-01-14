@@ -224,7 +224,7 @@ class Util
     if sink || !@default_logger
       @default_logger = Logger.new(sink || $stdout)
       level = :info unless level
-      @default_logger.formatter = Proc.new { |severity, time, pname, msg| puts msg }
+      @default_logger.formatter = Proc.new { |severity, time, pname, msg| msg }
     end
     @default_logger.level = Logger::Severity.const_get(level.to_s.upcase) if level
     @default_logger
