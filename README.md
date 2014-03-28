@@ -1,5 +1,5 @@
 # CloudFoundry UAA Gem
-
+[![Build Status](https://travis-ci.org/cloudfoundry/cf-uaa-lib.png)](https://travis-ci.org/cloudfoundry/cf-uaa-lib)
 [![Gem Version](https://badge.fury.io/rb/cf-uaa-lib.png)](http://badge.fury.io/rb/cf-uaa-lib)
 
 Client gem for interacting with the [CloudFoundry UAA server](https://github.com/cloudfoundry/uaa)
