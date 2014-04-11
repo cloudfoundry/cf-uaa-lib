@@ -176,6 +176,18 @@ class TokenCoder
   # @param [String] auth_header (see Scim.initialize#auth_header)
   # @return (see TokenCoder.decode)
   def decode(auth_header)
+    decode_at_reference_time(auth_header, Time.now.to_i)
+  end
+
+  # Returns hash of values decoded from the token contents,
+  # taking reference_time as the comparison time for expiration. If the
+  # audience_ids were specified in the options to this instance (see #initialize)
+  # and the token does not contain one or more of those audience_ids, an
+  # AuthError will be raised. AuthError is raised if the token has expired.
+  # @param [String] auth_header (see Scim.initialize#auth_header)
+  # @param [Integer] reference_time
+  # @return (see TokenCoder.decode)
+  def decode_at_reference_time(auth_header, reference_time)
     unless auth_header && (tkn = auth_header.split(' ')).length == 2 && tkn[0] =~ /^bearer$/i
       raise InvalidTokenFormat, "invalid authentication header: #{auth_header}"
     end
@@ -185,12 +197,11 @@ class TokenCoder
       raise InvalidAudience, "invalid audience: #{auds}"
     end
     exp = reply[:exp] || reply['exp']
-    unless exp.is_a?(Integer) && exp > Time.now.to_i
+    unless exp.is_a?(Integer) && exp > reference_time
       raise TokenExpired, "token expired"
     end
     reply
   end
-
 end
 
 end

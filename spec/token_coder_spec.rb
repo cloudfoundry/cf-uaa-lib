@@ -156,9 +156,25 @@ describe TokenCoder do
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(DecodeError)
   end
 
-  it "raises an error if the token has expired" do
-    tkn = subject.encode({'foo' => "bar", 'exp' => Time.now.to_i - 60 })
-    expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(TokenExpired)
+  context "when the implied expiration check is now" do
+    it "raises an error if the token has expired" do
+      tkn = subject.encode({'foo' => "bar", 'exp' => Time.now.to_i - 60 })
+      expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(TokenExpired)
+    end
+  end
+
+  context "when an explicit time stamp is provided for the expiration check" do
+    it "raises an error if the token was expired at the specified time" do
+      tkn = subject.encode({'foo' => "bar", 'exp' => Time.now.to_i - 30 })
+      expect { subject.decode_at_reference_time("bEaReR #{tkn}", Time.now.to_i - 20) }.to raise_exception(TokenExpired)
+    end
+
+    it "returns the decoded token if it was valid at the specified time" do
+      tkn = subject.encode({'foo' => "bar", 'exp' => Time.now.to_i - 30 })
+      result = subject.decode_at_reference_time("bEaReR #{tkn}", Time.now.to_i - 100)
+      result.should_not be_nil
+      result["foo"].should == "bar"
+    end
   end
 
   it "decodes a token without validation" do
@@ -166,10 +182,7 @@ describe TokenCoder do
     info = TokenCoder.decode(token, :verify => false)
     info["id"].should_not be_nil
     info["email"].should == "olds@vmware.com"
-    #puts Time.at(info[:exp].to_i)
-    #BaseCli.pp info
   end
-
 end
 
 end
