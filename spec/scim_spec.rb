@@ -70,6 +70,20 @@ describe Scim do
     result["id"].should == "id12345"
   end
 
+  it "modifies an object" do
+    obj = {:hair => "black", :shoe_size => "medium", :eye_color => ["hazel", "brown"],
+          :name => "fredrick", :meta => {:version => 'v567'}, :id => "id12345"}
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Users/id12345"
+      method.should == :patch
+      check_headers(headers, :json, :json)
+      headers["if-match"].should == "v567"
+      [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
+    end
+    result = subject.patch(:user, obj)
+    result["id"].should == "id12345"
+  end
+
   it "gets an object" do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
