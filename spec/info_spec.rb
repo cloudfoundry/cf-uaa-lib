@@ -34,11 +34,12 @@ module CF::UAA
     end
 
     describe "initialize" do
-      let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com'} }
+      let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com', :skip_ssl_validation => true} }
 
       it "sets proxy information" do
         uaa_info.http_proxy.should == 'http-proxy.com'
         uaa_info.https_proxy.should == 'https-proxy.com'
+        uaa_info.skip_ssl_validation == true
       end
     end
 

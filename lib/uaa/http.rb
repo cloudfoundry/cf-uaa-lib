@@ -47,7 +47,7 @@ module Http
 
   def self.included(base)
     base.class_eval do
-      attr_accessor :http_proxy, :https_proxy
+      attr_accessor :http_proxy, :https_proxy, :skip_ssl_validation
     end
   end
 
@@ -177,7 +177,7 @@ module Http
 
     if uri.is_a?(URI::HTTPS)
       http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE if skip_ssl_validation
     end
 
     @http_cache[cache_key] = http

@@ -29,11 +29,15 @@ describe TokenIssuer do
   subject { @issuer }
 
   describe "initialize" do
-    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com'} }
+    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com', :skip_ssl_validation => true} }
 
     it "sets proxy information" do
       subject.http_proxy.should == 'http-proxy.com'
       subject.https_proxy.should == 'https-proxy.com'
+    end
+
+    it "sets skip_ssl_validation" do
+      subject.skip_ssl_validation == true
     end
   end
 

@@ -99,6 +99,7 @@ class Scim
   def initialize(target, auth_header, options = {})
     @target, @auth_header = target, auth_header
     @key_style = options[:symbolize_keys] ? :downsym : :down
+    self.skip_ssl_validation = options[:skip_ssl_validation]
     self.http_proxy = options[:http_proxy]
     self.https_proxy = options[:https_proxy]
   end
