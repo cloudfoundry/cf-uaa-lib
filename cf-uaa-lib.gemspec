@@ -36,11 +36,11 @@ Gem::Specification.new do |s|
   s.add_dependency "multi_json"
 
   s.add_development_dependency "bundler"
-  s.add_development_dependency "rake"
-  s.add_development_dependency "rspec"
-  s.add_development_dependency "simplecov"
-  s.add_development_dependency "simplecov-rcov"
-  s.add_development_dependency "ci_reporter"
-  s.add_development_dependency "json_pure"
+  s.add_development_dependency "rake", "~> 10.3.2"
+  s.add_development_dependency "rspec", "~> 2.14.1"
+  s.add_development_dependency "simplecov", "~> 0.8.2"
+  s.add_development_dependency "simplecov-rcov", "~> 0.2.3"
+  s.add_development_dependency "ci_reporter", "~> 1.9.2"
+  s.add_development_dependency "json_pure", "~> 1.8.1"
 
 end
