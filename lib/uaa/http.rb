@@ -21,6 +21,9 @@ module CF::UAA
 # Indicates URL for the target is bad or not accessible.
 class BadTarget < UAAError; end
 
+# Indicates invalid SSL Certification for the target.
+class SSLException < UAAError; end
+
 # Indicates the resource within the target server was not found.
 class NotFound < UAAError; end
 
@@ -162,6 +165,8 @@ module Http
     reply.each_header { |k, v| outhdrs[k] = v }
     [reply.code.to_i, reply.body, outhdrs]
 
+  rescue OpenSSL::SSL::SSLError => e
+    raise SSLException, "Invalid SSL Cert for #{url}. Use '--skip-ssl-validation' to continue with an insecure target"
   rescue URI::Error, SocketError, SystemCallError => e
     raise BadTarget, "error: #{e.message}"
   rescue Net::HTTPBadResponse => e

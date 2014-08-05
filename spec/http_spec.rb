@@ -49,12 +49,19 @@ describe Http do
     expect(Net::HTTP).to have_received(:new).with(anything, anything, 'http-proxy.example.com', 1234, 'user', 'password')
   end
 
+  it "raises an SSLException when the certificate is not valid" do
+    http_double = double('http').as_null_object
+    Net::HTTP.stub(:new).and_return(http_double)
+    http_double.stub(:request).and_raise(OpenSSL::SSL::SSLError)
+
+    expect { http_instance.http_get("https://example.com") }.to raise_error(CF::UAA::SSLException)
+  end
+
   it "skips ssl validation if requested" do
     http_double = double('http').as_null_object
     Net::HTTP.stub(:new).and_return(http_double)
     http_double.stub(:verify_mode=)
 
-    http_instance.skip_ssl_validation = false
     http_instance.http_get("https://example.com")
     expect(http_double).not_to have_received(:verify_mode=)
 
@@ -62,7 +69,6 @@ describe Http do
     http_instance.http_get("https://uncached.example.com")
     expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_NONE)
   end
-
 end
 
 end
