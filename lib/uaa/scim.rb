@@ -70,7 +70,7 @@ class Scim
   # an attempt to hide some scim and uaa oddities
   def type_info(type, elem)
     scimfo = {:user => ["/Users", "userName"], :group => ["/Groups", "displayName"],
-      :client => ["/oauth/clients", 'client_id'], :user_id => ["/ids/Users", 'userName']}
+      :client => ["/oauth/clients", 'client_id'], :user_id => ["/ids/Users", 'userName'], :group_mapping => ["/Groups/External", "externalGroup"]}
     unless elem == :path || elem == :name_attr
       raise ArgumentError, "scim schema element must be :path or :name_attr"
     end
@@ -307,6 +307,14 @@ class Scim
         'authorization' => @auth_header))
   end
 
+  def map_group(group, is_id, external_group)
+    key_name = is_id ? :groupId : :displayName
+    request = {key_name => group, :externalGroup => external_group, :schemas => ["urn:scim:schemas:core:1.0"] }
+    result = json_parse_reply(@key_style, *json_post(@target,
+                                                     "#{type_info(:group_mapping, :path)}", request,
+                                                     'authorization' => @auth_header))
+    result
+  end
 end
 
 end

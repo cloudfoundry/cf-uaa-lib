@@ -139,6 +139,19 @@ describe Scim do
     result['id'].should == "id12345"
   end
 
+  it "adds a mapping from uaa groups to external group" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Groups/External"
+      method.should == :post
+      check_headers(headers, :json, :json)
+      body.should include('"displayName":"uaa-scope-name"', '"externalGroup":"external-group-name"', '"schemas":["urn:scim:schemas:core:1.0"]')
+      [201, '{"displayName":"uaa-scope-name", "externalGroup": "external-group-name"}', {"content-type" => "application/json"}]
+    end
+    result = subject.map_group("uaa-scope-name", false, "external-group-name")
+    result['displayname'].should == "uaa-scope-name"
+    result['externalgroup'].should == "external-group-name"
+  end
+
 end
 
 end
