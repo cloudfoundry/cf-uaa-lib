@@ -13,6 +13,8 @@
 
 require 'spec_helper'
 require 'uaa/scim'
+require 'uri'
+require 'cgi'
 
 module CF::UAA
 
@@ -152,6 +154,48 @@ describe Scim do
     result['externalgroup'].should == "external-group-name"
   end
 
+  describe "#list_group_mappings" do
+    it "lists all the external group mappings with default pagination" do
+      subject.set_request_handler do |url, method, body, headers|
+        url.should start_with("#{@target}/Groups/External/list")
+        method.should == :get
+        check_headers(headers, nil, :json)
+
+        [
+            200,
+            '{"resources": [{"groupId": "group-id", "displayName": "group-name", "externalGroup": "external-group-name"}], "totalResults": 1 }',
+            {"content-type" => "application/json"}
+        ]
+      end
+
+      result = subject.list_group_mappings
+      result['resources'].length.should == 1
+      result['totalresults'].should == 1
+    end
+
+    it "lists a page of external group mappings starting from an index" do
+      subject.set_request_handler do |url, method, body, headers|
+        url.should start_with("#{@target}/Groups/External/list")
+        method.should == :get
+        check_headers(headers, nil, :json)
+
+        query_params = CGI::parse(URI.parse(url).query)
+        start_index = query_params["startIndex"].first
+        count = query_params["count"].first
+
+        start_index.should == "3"
+        count.should == "10"
+
+        [
+            200,
+            '{"resources": [{"groupId": "group-id", "displayName": "group-name", "externalGroup": "external-group-name"}], "totalResults": 1 }',
+            {"content-type" => "application/json"}
+        ]
+      end
+
+      subject.list_group_mappings(3, 10)
+    end
+  end
 end
 
 end

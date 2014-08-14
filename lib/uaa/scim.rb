@@ -315,6 +315,10 @@ class Scim
                                                      'authorization' => @auth_header))
     result
   end
+
+  def list_group_mappings(start = nil, count = nil)
+    json_get(@target, "#{type_info(:group_mapping, :path)}/list?startIndex=#{start}&count=#{count}", @key_style, 'authorization' => @auth_header)
+  end
 end
 
 end
