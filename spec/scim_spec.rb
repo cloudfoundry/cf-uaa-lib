@@ -154,6 +154,17 @@ describe Scim do
     result['externalgroup'].should == "external-group-name"
   end
 
+  it "unmaps a uaa group from an external group" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Groups/External/id/uaa-group-id/external-group-name"
+      method.should == :delete
+      check_headers(headers, nil, nil)
+
+      [200, '{"displayName":"uaa-scope-name", "groupId": "uaa-group-id", "externalGroup": "external-group-name"}', {"content-type" => "application/json"}]
+    end
+    subject.unmap_group("uaa-group-id", "external-group-name")
+  end
+
   describe "#list_group_mappings" do
     it "lists all the external group mappings with default pagination" do
       subject.set_request_handler do |url, method, body, headers|

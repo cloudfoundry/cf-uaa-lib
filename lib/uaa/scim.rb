@@ -316,6 +316,11 @@ class Scim
     result
   end
 
+  def unmap_group(group_id, external_group)
+    http_delete(@target, "#{type_info(:group_mapping, :path)}/id/#{group_id}/#{external_group}",
+                          @auth_header)
+  end
+
   def list_group_mappings(start = nil, count = nil)
     json_get(@target, "#{type_info(:group_mapping, :path)}/list?startIndex=#{start}&count=#{count}", @key_style, 'authorization' => @auth_header)
   end
