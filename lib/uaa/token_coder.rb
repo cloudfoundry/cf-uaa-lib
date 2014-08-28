@@ -42,7 +42,7 @@ class InvalidAudience < AuthError; end
 class TokenCoder
 
   def self.init_digest(algo) # @private
-    OpenSSL::Digest::Digest.new(algo.sub('HS', 'sha').sub('RS', 'sha'))
+    OpenSSL::Digest.new(algo.sub('HS', 'sha').sub('RS', 'sha'))
   end
 
   def self.normalize_options(opts) # @private
