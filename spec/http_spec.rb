@@ -69,6 +69,17 @@ describe Http do
     http_instance.http_get("https://uncached.example.com")
     expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_NONE)
   end
+
+  it "passes ssl certificate file if provided" do
+    http_double = double('http').as_null_object
+    Net::HTTP.stub(:new).and_return(http_double)
+
+    http_instance.ssl_ca_file = "/fake-ca-file"
+    http_instance.http_get("https://uncached.example.com")
+
+    expect(http_double).to have_received(:ca_file=).with("/fake-ca-file")
+    expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+  end
 end
 
 end

@@ -32,6 +32,7 @@ class Info
   def initialize(target, options = {})
     self.target = target
     self.skip_ssl_validation = options[:skip_ssl_validation]
+    self.ssl_ca_file = options[:ssl_ca_file]
     self.symbolize_keys = options[:symbolize_keys]
     self.http_proxy = options[:http_proxy]
     self.https_proxy = options[:https_proxy]

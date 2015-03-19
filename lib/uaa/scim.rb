@@ -100,6 +100,7 @@ class Scim
     @target, @auth_header = target, auth_header
     @key_style = options[:symbolize_keys] ? :downsym : :down
     self.skip_ssl_validation = options[:skip_ssl_validation]
+    self.ssl_ca_file = options[:ssl_ca_file]
     self.http_proxy = options[:http_proxy]
     self.https_proxy = options[:https_proxy]
   end
