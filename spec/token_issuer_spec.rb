@@ -111,6 +111,28 @@ describe TokenIssuer do
 
   end
 
+  describe "#owner_password_credentials_grant" do
+    it "gets a token grant type password" do
+      subject.set_request_handler do |url, method, body, headers|
+        headers["content-type"].should =~ /application\/x-www-form-urlencoded/
+        headers["accept"].should =~ /application\/json/
+        url.should == "http://test.uaa.target/oauth/token"
+        method.should == :post
+        body.split('&').should =~ ["passcode=fake-passcode", "grant_type=password"]
+        reply = {:access_token => "test_access_token", :token_type => "BEARER",
+          :scope => "openid", :expires_in => 98765}
+        [200, Util.json(reply), {"content-type" => "application/json"}]
+      end
+      token = subject.owner_password_credentials_grant({passcode: "fake-passcode"})
+      token.should be_an_instance_of TokenInfo
+      token.info["access_token"].should == "test_access_token"
+      token.info["token_type"].should =~ /^bearer$/i
+      token.info["scope"].should == "openid"
+      token.info["expires_in"].should == 98765
+    end
+
+  end
+
   context "with implicit grant" do
 
     it "gets the prompts for credentials used to authenticate implicit grant" do

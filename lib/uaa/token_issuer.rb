@@ -240,6 +240,18 @@ class TokenIssuer
         :password => password, :scope => scope)
   end
 
+  # Gets an access token with the user credentials used for authentication
+  # via the owner password grant.
+  # See {http://tools.ietf.org/html/rfc6749#section-4.3}.
+  # @param credentials should be an object such as a hash that can be converted
+  #   to a json representation of the credential name/value pairs corresponding to
+  #   the keys retrieved by {#prompts}.
+  # @return [TokenInfo]
+  def owner_password_credentials_grant(credentials)
+    credentials[:grant_type] = 'password'
+    request_token(credentials)
+  end
+
   # Uses the instance client credentials to get a token with a client
   # credentials grant. See http://tools.ietf.org/html/rfc6749#section-4.4
   # @return [TokenInfo]
