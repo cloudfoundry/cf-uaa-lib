@@ -50,7 +50,7 @@ module Http
 
   def self.included(base)
     base.class_eval do
-      attr_accessor :http_proxy, :https_proxy, :skip_ssl_validation, :ssl_ca_file
+      attr_accessor :http_proxy, :https_proxy, :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store
     end
   end
 
@@ -187,6 +187,9 @@ module Http
         http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       elsif ssl_ca_file
         http.ca_file = File.expand_path(ssl_ca_file)
+        http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      elsif ssl_cert_store
+        http.cert_store = ssl_cert_store
         http.verify_mode = OpenSSL::SSL::VERIFY_PEER
       end
     end
