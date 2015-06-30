@@ -12,6 +12,7 @@
 #++
 
 require 'uaa/http'
+require 'uri'
 
 module CF::UAA
 
@@ -318,7 +319,7 @@ class Scim
   end
 
   def unmap_group(group_id, external_group)
-    http_delete(@target, "#{type_info(:group_mapping, :path)}/id/#{group_id}/#{external_group}",
+    http_delete(@target, "#{type_info(:group_mapping, :path)}/id/#{group_id}/#{URI.encode(external_group)}",
                           @auth_header)
   end
 
