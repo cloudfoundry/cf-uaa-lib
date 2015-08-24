@@ -151,44 +151,24 @@ describe TokenIssuer do
       expect { subject.prompts }.to raise_exception BadResponse
     end
 
-    context "#implicit_grant_with_creds" do
-      it "gets only an access token, no openid in scope" do
-        subject.set_request_handler do |url, method, body, headers|
-          headers["content-type"].should =~ /application\/x-www-form-urlencoded/
-          headers["accept"].should =~ /application\/json/
-          url.should match "http://test.uaa.target/oauth/authorize"
-          (state = /state=([^&]+)/.match(url)[1]).should_not be_nil
-          method.should == :post
-          location = "https://uaa.cloudfoundry.com/redirect/test_client#" +
-              "access_token=test_access_token&token_type=bearer&" +
-              "expires_in=98765&scope=logs.read&state=#{state}"
-          [302, nil, {"content-type" => "application/json", "location" => location}]
-        end
-
-        expect(subject).to receive(:authorize_path_args).with("token", "https://uaa.cloudfoundry.com/redirect/test_client", "logs.read", anything)
-        subject.stub(:random_state).and_return("1234")
-        subject.stub(:authorize_path_args).and_return("/oauth/authorize?state=1234&scope=logs.read")
-
-        token = subject.implicit_grant_with_creds({:username => "joe+admin", :password => "?joe's%password$@ "}, "logs.read")
-        token.should be_an_instance_of TokenInfo
-        token.info["access_token"].should == "test_access_token"
-        token.info["token_type"].should =~ /^bearer$/i
-        Util.arglist(token.info["scope"]).to_set.should == Util.arglist("logs.read").to_set
-        token.info["expires_in"].should == 98765
+    it "gets an access token" do
+      subject.set_request_handler do |url, method, body, headers|
+        headers["content-type"].should =~ /application\/x-www-form-urlencoded/
+        headers["accept"].should =~ /application\/json/
+        url.should match "http://test.uaa.target/oauth/authorize"
+        (state = /state=([^&]+)/.match(url)[1]).should_not be_nil
+        method.should == :post
+        location = "https://uaa.cloudfoundry.com/redirect/test_client#" +
+            "access_token=test_access_token&token_type=bearer&" +
+            "expires_in=98765&scope=openid+logs.read&state=#{state}"
+        [302, nil, {"content-type" => "application/json", "location" => location}]
       end
-
-      it "also asks for an id_token if scope contains openid" do
-        subject.set_request_handler do |url, method, body, headers|
-          location = "https://uaa.cloudfoundry.com/redirect/test_client#" +
-              "access_token=test_access_token&id_token=test-id_token&token_type=bearer&" +
-              "expires_in=98765&scope=openid+logs.read&state=1234"
-          [302, nil, {"content-type" => "application/json", "location" => location}]
-        end
-
-        expect(subject).to receive(:authorize_path_args).with("token id_token", "https://uaa.cloudfoundry.com/redirect/test_client", "openid logs.read", anything)
-        subject.stub(:random_state).and_return("1234")
-        subject.implicit_grant_with_creds({:username => "joe+admin", :password => "?joe's%password$@ "}, "openid logs.read")
-      end
+      token = subject.implicit_grant_with_creds(:username => "joe+admin", :password => "?joe's%password$@ ")
+      token.should be_an_instance_of TokenInfo
+      token.info["access_token"].should == "test_access_token"
+      token.info["token_type"].should =~ /^bearer$/i
+      Util.arglist(token.info["scope"]).to_set.should == Util.arglist("openid logs.read").to_set
+      token.info["expires_in"].should == 98765
     end
 
     it "rejects an access token with wrong state" do
@@ -202,30 +182,18 @@ describe TokenIssuer do
           :password => "?joe's%password$@ ")}.to raise_exception BadResponse
     end
 
-    it "asks for an id_token with openid scope" do
-      uri_parts = subject.implicit_uri("http://call.back/uri_path", "openid logs.read").split('?')
-      params = Util.decode_form(uri_parts[1])
-      params["response_type"].should == "token id_token"
-    end
-
-    it "only asks for token if scope isn't openid" do
-      uri_parts = subject.implicit_uri("http://call.back/uri_path").split('?')
-      params = Util.decode_form(uri_parts[1])
-      params["response_type"].should == "token"
-    end
-
   end
 
   context "with auth code grant" do
 
     it "gets the authcode uri to be sent to the user agent for an authcode" do
       redir_uri = "http://call.back/uri_path"
-      uri_parts = subject.authcode_uri(redir_uri, "openid").split('?')
+      uri_parts = subject.authcode_uri(redir_uri).split('?')
       uri_parts[0].should == "http://test.uaa.target/oauth/authorize"
       params = Util.decode_form(uri_parts[1])
       params["response_type"].should == "code"
       params["client_id"].should == "test_client"
-      params["scope"].should == "openid"
+      params["scope"].should be_nil
       params["redirect_uri"].should == redir_uri
       params["state"].should_not be_nil
     end
