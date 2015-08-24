@@ -51,8 +51,8 @@ class Scim
       "usertype" => "userType", "preferredlanguage" => "preferredLanguage",
       "x509certificates" => "x509Certificates", "lastmodified" => "lastModified",
       "externalid" => "externalId", "phonenumbers" => "phoneNumbers",
-      "startindex" => "startIndex"}[kd]
-    kc || kd
+      "startindex" => "startIndex", "attributes" => "attributes", "filter" => "filter"}[kd]
+    kc || k.to_s
   end
 
   # This is very inefficient and should be unnecessary. SCIM (1.1 and early
