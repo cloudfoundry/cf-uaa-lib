@@ -63,12 +63,10 @@ describe Scim do
   end
 
   it "replaces an object" do
-    obj = {:hair => "black", :shoe_size => "medium", :eyeColor => ["hazel", "brown"],
-          :name => "fredrick", :UserName => "test-user", :meta => {:version => 'v567'}, :id => "id12345"}
+    obj = {:hair => "black", :shoe_size => "medium", :eye_color => ["hazel", "brown"],
+          :name => "fredrick", :meta => {:version => 'v567'}, :id => "id12345"}
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
-      expect(body).to include("eyeColor")
-      expect(body).to include("userName")
       method.should == :put
       check_headers(headers, :json, :json)
       headers["if-match"].should == "v567"

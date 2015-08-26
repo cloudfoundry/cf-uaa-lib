@@ -110,12 +110,8 @@ describe "UAA Integration:" do
     end
 
     it "lists all users" do
-      user_info = @scim.query(:user, :Attributes => 'id', :filter => "userName eq '#{@username}'")
-
+      user_info = @scim.query(:user)
       user_info.should_not be_nil
-      user_info[:resources].should_not be_nil
-      user_info[:resources][0][:username].should be_nil
-      user_info[:resources][0][:id].should_not be_nil
     end
 
     if ENV["UAA_CLIENT_LOGIN"]
