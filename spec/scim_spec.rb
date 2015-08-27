@@ -129,6 +129,16 @@ describe Scim do
     result['id'].should == "id12345"
   end
 
+  it "tries to change the user's password to be the same as the old one" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Users/id12345/password"
+      method.should == :put
+      check_headers(headers, :json, :json)
+      [400, '{"error":"invalid_password","message":"Your new password cannot be the same as the old password."}', {"content-type" => "application/json"}]
+    end
+    expect {subject.change_password("id12345", "oldpwd", "oldpwd")}.to raise_error(error=TargetError)
+  end
+
   it "changes a client's secret" do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/oauth/clients/id12345/secret"

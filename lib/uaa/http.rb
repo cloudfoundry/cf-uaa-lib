@@ -106,7 +106,7 @@ module Http
 
   def json_parse_reply(style, status, body, headers)
     raise ArgumentError unless style.nil? || style.is_a?(Symbol)
-    unless [200, 201, 204, 400, 401, 403, 409].include? status
+    unless [200, 201, 204, 400, 401, 403, 409, 422].include? status
       raise (status == 404 ? NotFound : BadResponse), "invalid status response: #{status}"
     end
     if body && !body.empty? && (status == 204 || headers.nil? ||
