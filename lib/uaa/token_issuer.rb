@@ -131,9 +131,9 @@ class TokenIssuer
   #   to a json representation of the credential name/value pairs corresponding to
   #   the keys retrieved by {#prompts}.
   # @return [TokenInfo]
-  def implicit_grant_with_creds(credentials, scope = nil)
+  def implicit_grant_with_creds(credentials, scope = nil, redirect_uri=nil)
     # this manufactured redirect_uri is a convention here, not part of OAuth2
-    redir_uri = "https://uaa.cloudfoundry.com/redirect/#{@client_id}"
+    redir_uri = "#{redirect_uri}/redirect/#{@client_id}" || "https://uaa.cloudfoundry.com/redirect/#{@client_id}"
     uri = authorize_path_args("token", redir_uri, scope, state = random_state)
 
     # the accept header is only here so the uaa will issue error replies in json to aid debugging
