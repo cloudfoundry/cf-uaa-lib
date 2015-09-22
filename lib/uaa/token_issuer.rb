@@ -84,7 +84,7 @@ class TokenIssuer
     params = args.merge(:client_id => @client_id, :response_type => response_type,
         :redirect_uri => redirect_uri, :state => state)
     params[:scope] = scope = Util.strlist(scope) if scope = Util.arglist(scope)
-    params[:nonce], params[:response_type] = state, "#{response_type} id_token" if scope && scope.include?('openid')
+    params[:nonce] = state
     "/oauth/authorize?#{Util.encode_form(params)}"
   end
 
@@ -134,7 +134,9 @@ class TokenIssuer
   def implicit_grant_with_creds(credentials, scope = nil)
     # this manufactured redirect_uri is a convention here, not part of OAuth2
     redir_uri = "https://uaa.cloudfoundry.com/redirect/#{@client_id}"
-    uri = authorize_path_args("token", redir_uri, scope, state = random_state)
+    response_type = "token"
+    response_type = "#{response_type} id_token" if scope && (scope.include? "openid")
+    uri = authorize_path_args(response_type, redir_uri, scope, state = random_state)
 
     # the accept header is only here so the uaa will issue error replies in json to aid debugging
     headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8 }
@@ -154,7 +156,9 @@ class TokenIssuer
   # @param [String] redirect_uri (see #authcode_uri)
   # @return [String]
   def implicit_uri(redirect_uri, scope = nil)
-    @target + authorize_path_args("token", redirect_uri, scope)
+    response_type = "token"
+    response_type = "#{response_type} id_token" if scope && (scope.include? "openid")
+    @target + authorize_path_args(response_type, redirect_uri, scope)
   end
 
   # Gets a token via an implicit grant.
