@@ -80,6 +80,18 @@ describe Http do
     expect(http_double).to have_received(:ca_file=).with("/fake-ca-file")
     expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
   end
+
+  it "passes ssl cert store if provided" do
+    http_double = double('http').as_null_object
+    cert_store = double('OpenSSL::X509::Store')
+    Net::HTTP.stub(:new).and_return(http_double)
+
+    http_instance.ssl_cert_store = cert_store
+    http_instance.http_get("https://uncached.example.com")
+
+    expect(http_double).to have_received(:cert_store=).with(cert_store)
+    expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+  end
 end
 
 end
