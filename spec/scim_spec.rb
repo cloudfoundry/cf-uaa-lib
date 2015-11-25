@@ -29,12 +29,13 @@ describe Scim do
 
   subject { @scim }
 
-  def check_headers(headers, content, accept)
+  def check_headers(headers, content, accept, zone)
     headers["content-type"].should =~ /application\/json/ if content == :json
     headers["content-type"].should be_nil unless content
     headers["accept"].should =~ /application\/json/ if accept == :json
     headers["accept"].should be_nil unless accept
     headers["authorization"].should =~ /^(?i:bearer)\s+xyz$/
+    headers["X-Identity-Zone-Subdomain"].should eq zone
   end
 
   describe "initialize" do
@@ -54,7 +55,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users"
       method.should == :post
-      check_headers(headers, :json, :json)
+      check_headers(headers, :json, :json, nil)
       [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
     result = subject.add(:user, :hair => "brown", :shoe_size => "large",
@@ -68,7 +69,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :put
-      check_headers(headers, :json, :json)
+      check_headers(headers, :json, :json, nil)
       headers["if-match"].should == "v567"
       [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
@@ -82,7 +83,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :patch
-      check_headers(headers, :json, :json)
+      check_headers(headers, :json, :json, nil)
       headers["if-match"].should == "v567"
       [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
     end
@@ -94,7 +95,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :get
-      check_headers(headers, nil, :json)
+      check_headers(headers, nil, :json, nil)
       [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
     result = subject.get(:user, "id12345")
@@ -107,7 +108,7 @@ describe Scim do
       url.should =~ %r{[\?&]attributes=id(&|$)}
       url.should =~ %r{[\?&]startIndex=[12](&|$)}
       method.should == :get
-      check_headers(headers, nil, :json)
+      check_headers(headers, nil, :json, nil)
       reply = url =~ /startIndex=1/ ?
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":1,"RESOURCES":[{"id":"id12345"}]}' :
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":2,"RESOURCES":[{"id":"id67890"}]}'
@@ -121,7 +122,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345/password"
       method.should == :put
-      check_headers(headers, :json, :json)
+      check_headers(headers, :json, :json, nil)
       body.should include('"password":"newpwd"', '"oldPassword":"oldpwd"')
       [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
@@ -133,7 +134,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345/password"
       method.should == :put
-      check_headers(headers, :json, :json)
+      check_headers(headers, :json, :json, nil)
       [400, '{"error":"invalid_password","message":"Your new password cannot be the same as the old password."}', {"content-type" => "application/json"}]
     end
     expect {subject.change_password("id12345", "oldpwd", "oldpwd")}.to raise_error(error=TargetError)
@@ -143,7 +144,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/oauth/clients/id12345/secret"
       method.should == :put
-      check_headers(headers, :json, :json)
+      check_headers(headers, :json, :json, nil)
       body.should include('"secret":"newpwd"', '"oldSecret":"oldpwd"')
       [200, '{"id":"id12345"}', {"content-type" => "application/json"}]
     end
@@ -155,7 +156,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Groups/External"
       method.should == :post
-      check_headers(headers, :json, :json)
+      check_headers(headers, :json, :json, nil)
       body.should include('"displayName":"uaa-scope-name"', '"externalGroup":"external-group-name"', '"schemas":["urn:scim:schemas:core:1.0"]')
       [201, '{"displayName":"uaa-scope-name", "externalGroup": "external-group-name"}', {"content-type" => "application/json"}]
     end
@@ -168,11 +169,27 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Groups/External/id/uaa-group-id/external%20group%20name"
       method.should == :delete
-      check_headers(headers, nil, nil)
+      check_headers(headers, nil, nil, nil)
 
       [200, '{"displayName":"uaa-scope-name", "groupId": "uaa-group-id", "externalGroup": "external-group-name"}', {"content-type" => "application/json"}]
     end
     subject.unmap_group("uaa-group-id", "external group name")
+  end
+
+  describe "users in a zone" do
+    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com', :skip_ssl_validation => true, :zone => 'derpzone'} }
+
+    it "sends zone header" do
+        subject.set_request_handler do |url, method, body, headers|
+          url.should == "#{@target}/Users"
+          method.should == :post
+          check_headers(headers, :json, :json, 'derpzone')
+          [200, '{"ID":"id12345"}', {"content-type" => "application/json"}]
+        end
+        result = subject.add(:user, :hair => "brown", :shoe_size => "large",
+                             :eye_color => ["blue", "green"], :name => "fred")
+        result["id"].should == "id12345"
+      end
   end
 
   describe "#list_group_mappings" do
@@ -180,7 +197,7 @@ describe Scim do
       subject.set_request_handler do |url, method, body, headers|
         url.should start_with("#{@target}/Groups/External/list")
         method.should == :get
-        check_headers(headers, nil, :json)
+        check_headers(headers, nil, :json, nil)
 
         [
             200,
@@ -198,7 +215,7 @@ describe Scim do
       subject.set_request_handler do |url, method, body, headers|
         url.should start_with("#{@target}/Groups/External/list")
         method.should == :get
-        check_headers(headers, nil, :json)
+        check_headers(headers, nil, :json, nil)
 
         query_params = CGI::parse(URI.parse(url).query)
         start_index = query_params["startIndex"].first
@@ -216,6 +233,8 @@ describe Scim do
 
       subject.list_group_mappings(3, 10)
     end
+
+
   end
 end
 

@@ -55,6 +55,12 @@ class Scim
     kc || kd
   end
 
+  def headers()
+    hdrs = { 'authorization' => @auth_header }
+    hdrs['X-Identity-Zone-Subdomain'] = @zone if @zone
+    hdrs
+  end
+
   # This is very inefficient and should be unnecessary. SCIM (1.1 and early
   # 2.0 drafts) specify that attribute names are case insensitive. However
   # in the UAA attribute names are currently case sensitive. This hack takes
@@ -105,6 +111,7 @@ class Scim
     self.ssl_cert_store = options[:ssl_cert_store]
     self.http_proxy = options[:http_proxy]
     self.https_proxy = options[:https_proxy]
+    @zone = options[:zone]
   end
 
   # Convenience method to get the naming attribute, e.g. userName for user,
@@ -121,7 +128,7 @@ class Scim
   def add(type, info)
     path, info = type_info(type, :path), force_case(info)
     reply = json_parse_reply(@key_style, *json_post(@target, path, info,
-        "authorization" => @auth_header))
+        headers))
     fake_client_id(reply) if type == :client # hide client reply, not quite scim
     reply
   end
@@ -131,7 +138,7 @@ class Scim
   # @param [String] id the id attribute of the SCIM object
   # @return [nil]
   def delete(type, id)
-    http_delete @target, "#{type_info(type, :path)}/#{URI.encode(id)}", @auth_header
+    http_delete @target, "#{type_info(type, :path)}/#{URI.encode(id)}", @auth_header, @zone
   end
 
   # Replaces the contents of a SCIM object.
@@ -141,7 +148,7 @@ class Scim
     path, info = type_info(type, :path), force_case(info)
     ida = type == :client ? 'client_id' : 'id'
     raise ArgumentError, "info must include #{ida}" unless id = info[ida]
-    hdrs = {'authorization' => @auth_header}
+   hdrs = headers
     if info && info['meta'] && (etag = info['meta']['version'])
       hdrs.merge!('if-match' => etag)
     end
@@ -159,7 +166,7 @@ class Scim
     path, info = type_info(type, :path), force_case(info)
     ida = type == :client ? 'client_id' : 'id'
     raise ArgumentError, "info must include #{ida}" unless id = info[ida]
-    hdrs = {'authorization' => @auth_header}
+    hdrs = headers
     if info && info['meta'] && (etag = info['meta']['version'])
       hdrs.merge!('if-match' => etag)
     end
@@ -190,7 +197,7 @@ class Scim
     end
     qstr = query.empty?? '': "?#{Util.encode_form(query)}"
     info = json_get(@target, "#{type_info(type, :path)}#{qstr}",
-        @key_style,  'authorization' => @auth_header)
+        @key_style,  headers)
     unless info.is_a?(Hash) && info[rk = jkey(:resources)].is_a?(Array)
 
       # hide client endpoints that are not yet scim compatible
@@ -213,7 +220,7 @@ class Scim
   # @return (see #add)
   def get(type, id)
     info = json_get(@target, "#{type_info(type, :path)}/#{URI.encode(id)}",
-        @key_style, 'authorization' => @auth_header)
+        @key_style, headers)
 
     fake_client_id(info) if type == :client # hide client reply, not quite scim
     info
@@ -289,8 +296,7 @@ class Scim
     req = {"password" => new_password}
     req["oldPassword"] = old_password if old_password
     json_parse_reply(@key_style, *json_put(@target,
-        "#{type_info(:user, :path)}/#{URI.encode(user_id)}/password", req,
-        'authorization' => @auth_header))
+        "#{type_info(:user, :path)}/#{URI.encode(user_id)}/password", req, headers))
   end
 
   # Change client secret.
@@ -306,8 +312,7 @@ class Scim
     req = {"secret" => new_secret }
     req["oldSecret"] = old_secret if old_secret
     json_parse_reply(@key_style, *json_put(@target,
-        "#{type_info(:client, :path)}/#{URI.encode(client_id)}/secret", req,
-        'authorization' => @auth_header))
+        "#{type_info(:client, :path)}/#{URI.encode(client_id)}/secret", req, headers))
   end
 
   def map_group(group, is_id, external_group)
@@ -315,17 +320,17 @@ class Scim
     request = {key_name => group, :externalGroup => external_group, :schemas => ["urn:scim:schemas:core:1.0"] }
     result = json_parse_reply(@key_style, *json_post(@target,
                                                      "#{type_info(:group_mapping, :path)}", request,
-                                                     'authorization' => @auth_header))
+                                                     headers))
     result
   end
 
   def unmap_group(group_id, external_group)
     http_delete(@target, "#{type_info(:group_mapping, :path)}/id/#{group_id}/#{URI.encode(external_group)}",
-                          @auth_header)
+                          @auth_header, @zone)
   end
 
   def list_group_mappings(start = nil, count = nil)
-    json_get(@target, "#{type_info(:group_mapping, :path)}/list?startIndex=#{start}&count=#{count}", @key_style, 'authorization' => @auth_header)
+    json_get(@target, "#{type_info(:group_mapping, :path)}/list?startIndex=#{start}&count=#{count}", @key_style, headers)
   end
 end
 

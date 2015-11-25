@@ -50,7 +50,7 @@ module Http
 
   def self.included(base)
     base.class_eval do
-      attr_accessor :http_proxy, :https_proxy, :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store
+      attr_accessor :http_proxy, :https_proxy, :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store, :zone
     end
   end
 
@@ -128,8 +128,10 @@ module Http
   def http_put(target, path, body, headers = {}) request(target, :put, path, body, headers) end
   def http_patch(target, path, body, headers = {}) request(target, :patch, path, body, headers) end
 
-  def http_delete(target, path, authorization)
-    status = request(target, :delete, path, nil, "authorization" => authorization)[0]
+  def http_delete(target, path, authorization, zone = nil)
+    hdrs = { "authorization" => authorization }
+    hdrs['X-Identity-Zone-Subdomain'] = zone if zone
+    status = request(target, :delete, path, nil, hdrs)[0]
     unless [200, 204].include?(status)
       raise (status == 404 ? NotFound : BadResponse), "invalid response from #{path}: #{status}"
     end
