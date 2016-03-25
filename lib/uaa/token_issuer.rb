@@ -245,6 +245,13 @@ class TokenIssuer
         :password => password, :scope => scope)
   end
 
+  # Uses a one-time passcode obtained from the UAA to get a
+  # token.
+  # @return [TokenInfo]
+  def passcode_grant(passcode, scope = nil)
+    request_token(:grant_type => 'password', :passcode => passcode, :scope => scope)
+  end
+
   # Gets an access token with the user credentials used for authentication
   # via the owner password grant.
   # See {http://tools.ietf.org/html/rfc6749#section-4.3}.
