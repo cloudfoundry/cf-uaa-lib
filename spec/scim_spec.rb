@@ -157,7 +157,20 @@ describe Scim do
       url.should == "#{@target}/Groups/External"
       method.should == :post
       check_headers(headers, :json, :json, nil)
-      body.should include('"displayName":"uaa-scope-name"', '"externalGroup":"external-group-name"', '"schemas":["urn:scim:schemas:core:1.0"]')
+      body.should include('"displayName":"uaa-scope-name"', '"externalGroup":"external-group-name"', '"schemas":["urn:scim:schemas:core:1.0"]', '"origin":"test-origin"')
+      [201, '{"displayName":"uaa-scope-name", "externalGroup": "external-group-name"}', {"content-type" => "application/json"}]
+    end
+    result = subject.map_group("uaa-scope-name", false, "external-group-name", "test-origin")
+    result['displayname'].should == "uaa-scope-name"
+    result['externalgroup'].should == "external-group-name"
+  end
+
+  it "defaults to ldap origin when mapping a uaa group from an external group" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Groups/External"
+      method.should == :post
+      check_headers(headers, :json, :json, nil)
+      body.should include('"displayName":"uaa-scope-name"', '"externalGroup":"external-group-name"', '"schemas":["urn:scim:schemas:core:1.0"]', '"origin":"ldap"')
       [201, '{"displayName":"uaa-scope-name", "externalGroup": "external-group-name"}', {"content-type" => "application/json"}]
     end
     result = subject.map_group("uaa-scope-name", false, "external-group-name")
@@ -167,7 +180,18 @@ describe Scim do
 
   it "unmaps a uaa group from an external group" do
     subject.set_request_handler do |url, method, body, headers|
-      url.should == "#{@target}/Groups/External/id/uaa-group-id/external%20group%20name"
+      url.should == "#{@target}/Groups/External/groupId/uaa-group-id/externalGroup/external%20group%20name/origin/test-origin"
+      method.should == :delete
+      check_headers(headers, nil, nil, nil)
+
+      [200, '{"displayName":"uaa-scope-name", "groupId": "uaa-group-id", "externalGroup": "external-group-name"}', {"content-type" => "application/json"}]
+    end
+    subject.unmap_group("uaa-group-id", "external group name", "test-origin")
+  end
+
+  it "defaults to ldap origin when unmapping a uaa group from an external group" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Groups/External/groupId/uaa-group-id/externalGroup/external%20group%20name/origin/ldap"
       method.should == :delete
       check_headers(headers, nil, nil, nil)
 

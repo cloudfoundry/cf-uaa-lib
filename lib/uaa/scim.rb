@@ -315,17 +315,17 @@ class Scim
         "#{type_info(:client, :path)}/#{URI.encode(client_id)}/secret", req, headers))
   end
 
-  def map_group(group, is_id, external_group)
+  def map_group(group, is_id, external_group, origin = "ldap")
     key_name = is_id ? :groupId : :displayName
-    request = {key_name => group, :externalGroup => external_group, :schemas => ["urn:scim:schemas:core:1.0"] }
+    request = {key_name => group, :externalGroup => external_group, :schemas => ["urn:scim:schemas:core:1.0"], :origin => origin }
     result = json_parse_reply(@key_style, *json_post(@target,
                                                      "#{type_info(:group_mapping, :path)}", request,
                                                      headers))
     result
   end
 
-  def unmap_group(group_id, external_group)
-    http_delete(@target, "#{type_info(:group_mapping, :path)}/id/#{group_id}/#{URI.encode(external_group)}",
+  def unmap_group(group_id, external_group, origin = "ldap")
+    http_delete(@target, "#{type_info(:group_mapping, :path)}/groupId/#{group_id}/externalGroup/#{URI.encode(external_group)}/origin/#{origin}",
                           @auth_header, @zone)
   end
 
