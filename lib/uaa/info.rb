@@ -99,6 +99,29 @@ class Info
     json_get(target, "/token_key", key_style, hdrs)
   end
 
+  # Gets all currently valid token verification keys. If the server has had
+  # its signing key changed, then +/token_key+ will return a verification key
+  # that does not match a JWT token issued before the change. To validate the
+  # signature of these tokens, refer to the +kid+ header of the JWT token. The
+  # +validation_keys_hash+ method returns a hash of all currently valid
+  # verification keys, indexed by +kid+. To retrieve symmetric keys as part of
+  # the result, client credentials are required.
+  # @param (see Misc.server)
+  # @return [Hash]
+  def validation_keys_hash(client_id = nil, client_secret = nil)
+    hdrs = client_id && client_secret ?
+        { "authorization" => Http.basic_auth(client_id, client_secret)} : {}
+    response = json_get(target, "/token_keys", key_style, hdrs)
+
+    keys_map = {}
+
+    response['keys'].each do |key|
+      keys_map[key['kid']] = key
+    end
+
+    keys_map
+  end
+
   # Sends +token+ to the server to validate and decode. Authenticates with
   # +client_id+ and +client_secret+. If +audience_ids+ are specified and the
   # token's "aud" attribute does not contain one or more of the audience_ids,

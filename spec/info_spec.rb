@@ -115,5 +115,26 @@ module CF::UAA
         result['alg'].should == 'SHA256withRSA'
       end
     end
+
+    describe "validation keys" do
+      let(:target_url) { "https://login.cloudfoundry.com/token_keys" }
+      let(:response_body) { '{ "keys": [ { "kid": "the_key", "alg": "SHA256withRSA", "value": "-----BEGIN PUBLIC KEY-----\nabc123\n-----END PUBLIC KEY-----\n", "kty": "RSA", "use": "sig", "n": "Ufn7Qc", "e": "EEXZ" }, { "kid": "the_other_key", "alg": "SHA256withRSA", "value": "-----BEGIN PUBLIC KEY-----\ndef456\n-----END PUBLIC KEY-----\n", "kty": "RSA", "use": "sig", "n": "AMcW9/P", "e": "AQAB" } ] }' }
+
+      it "returns a hash of keys" do
+        result = uaa_info.validation_keys_hash(authorization)
+
+        the_key = result['the_key']
+        the_key.should_not be_nil
+
+        the_other_key = result['the_other_key']
+        the_other_key.should_not be_nil
+
+        the_key['alg'].should == 'SHA256withRSA'
+        the_other_key['alg'].should == 'SHA256withRSA'
+
+        the_key['value'].should == "-----BEGIN PUBLIC KEY-----\nabc123\n-----END PUBLIC KEY-----\n"
+        the_other_key['value'].should == "-----BEGIN PUBLIC KEY-----\ndef456\n-----END PUBLIC KEY-----\n"
+      end
+    end
   end
 end
