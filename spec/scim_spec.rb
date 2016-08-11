@@ -152,6 +152,18 @@ describe Scim do
     result['id'].should == "id12345"
   end
 
+  it "unlocks a user" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/Users/id12345/status"
+      method.should == :patch
+      check_headers(headers, :json, :json, nil)
+      body.should include('"locked":false')
+      [200, '{"locked":false}', {"content-type" => "application/json"}]
+    end
+    result = subject.unlock_user("id12345")
+    result['locked'].should == false
+  end
+
   it "adds a mapping from uaa groups to external group" do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Groups/External"

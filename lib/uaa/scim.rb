@@ -315,6 +315,12 @@ class Scim
         "#{type_info(:client, :path)}/#{URI.encode(client_id)}/secret", req, headers))
   end
 
+  def unlock_user(user_id)
+    req = {"locked" => false}
+    json_parse_reply(@key_style, *json_patch(@target,
+        "#{type_info(:user, :path)}/#{URI.encode(user_id)}/status", req, headers))
+  end
+
   def map_group(group, is_id, external_group, origin = "ldap")
     key_name = is_id ? :groupId : :displayName
     request = {key_name => group, :externalGroup => external_group, :schemas => ["urn:scim:schemas:core:1.0"], :origin => origin }
