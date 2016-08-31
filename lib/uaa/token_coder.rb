@@ -113,7 +113,7 @@ class TokenCoder
     signature = Util.decode64(crypto_segment)
     if ["HS256", "HS384", "HS512"].include?(algo)
       raise InvalidSignature, "Signature verification failed" unless
-          options[:skey] && signature == OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input)
+          options[:skey] && constant_time_compare(signature, OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input))
     elsif ["RS256", "RS384", "RS512"].include?(algo)
       raise InvalidSignature, "Signature verification failed" unless
           options[:pkey] && options[:pkey].verify(init_digest(algo), signature, signing_input)
@@ -121,6 +121,24 @@ class TokenCoder
       raise SignatureNotSupported, "Algorithm not supported"
     end
     payload
+  end
+
+  # Takes constant time to compare 2 strings (HMAC digests in this case)
+  # to avoid timing attacks while comparing the HMAC digests
+  # @param [String] a: the first digest to compare
+  # @param [String] b: the second digest to compare
+  # @return [boolean] true if they are equal, false otherwise
+  def self.constant_time_compare(a, b)
+    if a.length != b.length
+      return false
+    end
+  
+    result = 0
+    a.chars.zip(b.chars).each do |x, y|
+      result |= x.ord ^ y.ord
+    end
+    
+    result == 0
   end
 
   # Creates a new token en/decoder for a service that is associated with
