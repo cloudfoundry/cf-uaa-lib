@@ -192,9 +192,9 @@ class TokenIssuer
   # @param [String] redirect_uri (see #authcode_uri)
   # @return (see #authcode_uri)
   def autologin_uri(redirect_uri, credentials, scope = nil)
-    headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8,
+    headers = {'content-type' => JSON_UTF8, 'accept' => JSON_UTF8,
         'authorization' => Http.basic_auth(@client_id, @client_secret) }
-    body = Util.encode_form(credentials)
+    body = Util.json(credentials)
     reply = json_parse_reply(nil, *request(@target, :post, "/autologin", body, headers))
     raise BadResponse, "no autologin code in reply" unless reply['code']
     @target + authorize_path_args('code', redirect_uri, scope,
