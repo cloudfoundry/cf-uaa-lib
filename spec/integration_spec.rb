@@ -124,7 +124,7 @@ describe "UAA Integration:" do
         uri_parts[0].should == "#{logn}/oauth/authorize"
         params = Util.decode_form(uri_parts[1], :sym)
         params[:response_type].should == "code"
-        params[:client_id].should == @client_id
+        params[:client_id].should == @test_client
         params[:scope].should be_nil
         params[:redirect_uri].should == redir_uri
         params[:state].should_not be_nil
