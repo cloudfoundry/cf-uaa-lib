@@ -22,49 +22,53 @@ require 'pp'
 
 module CF::UAA
 
-if ENV["UAA_CLIENT_TARGET"]
+# ENV['UAA_CLIENT_TARGET'] = 'http://localhost:8080/uaa'
+ENV['UAA_CLIENT_TARGET'] = 'https://login.identity.cf-app.com/'
+if ENV['UAA_CLIENT_TARGET']
 
-describe "UAA Integration:" do
+describe 'UAA Integration:' do
 
   def create_test_client
     toki = TokenIssuer.new(@target, @admin_client, @admin_secret)
     cr = Scim.new(@target, toki.client_credentials_grant.auth_header, :symbolize_keys => true)
     @test_client = "test_client_#{Time.now.to_i}"
-    @test_secret = "+=tEsTsEcRet~!@"
-    gids = ["clients.read", "scim.read", "scim.write", "uaa.resource", "password.write"]
+    @test_secret = '+=tEsTsEcRet~!@'
+    gids = ['clients.read', 'scim.read', 'scim.write', 'uaa.resource', 'password.write']
     new_client = cr.add(:client, :client_id => @test_client, :client_secret => @test_secret,
-          :authorities => gids, :authorized_grant_types => ["client_credentials", "password"],
-          :scope => ["openid", "password.write"])
+          :authorities => gids, :authorized_grant_types => ['client_credentials', 'password'],
+          :scope => ['openid', 'password.write'])
     new_client[:client_id].should == @test_client
     @username = "sam_#{Time.now.to_i}"
   end
 
   before :all do
     #Util.default_logger(:trace)
-    @admin_client = ENV["UAA_CLIENT_ID"] || "admin"
-    @admin_secret = ENV["UAA_CLIENT_SECRET"] || "adminsecret"
-    @target = ENV["UAA_CLIENT_TARGET"]
+    @admin_client = ENV['UAA_CLIENT_ID'] || 'admin'
+    @admin_secret = ENV['UAA_CLIENT_SECRET'] || 'adminsecret'
+    @target = ENV['UAA_CLIENT_TARGET']
     @username = "sam_#{Time.now.to_i}"
   end
 
-  it "should report the uaa client version" do
+  let(:token_issuer) { TokenIssuer.new(@target, @admin_client, @admin_secret, {:skip_ssl_validation => true}) }
+
+  it 'should report the uaa client version' do
     VERSION.should =~ /\d.\d.\d/
   end
 
-  it "makes sure the server is there by getting the prompts for an implicit grant" do
-    prompts = TokenIssuer.new(@target, @admin_client, @admin_secret).prompts
+  it 'makes sure the server is there by getting the prompts for an implicit grant' do
+    prompts = token_issuer.prompts
     prompts.should_not be_nil
   end
 
-  it "gets a token with client credentials" do
+  it 'gets a token with client credentials' do
     tkn = TokenIssuer.new(@target, @admin_client, @admin_secret).client_credentials_grant
     tkn.auth_header.should =~ /^bearer\s/i
-    info = TokenCoder.decode(tkn.info["access_token"], :verify => false, :symbolize_keys => true)
+    info = TokenCoder.decode(tkn.info['access_token'], :verify => false, :symbolize_keys => true)
     info[:exp].should be
     info[:jti].should be
   end
 
-  context "as a client," do
+  context 'as a client' do
 
     before :all do
       create_test_client
@@ -72,8 +76,8 @@ describe "UAA Integration:" do
       @scim = Scim.new(@target, toki.client_credentials_grant.auth_header, :symbolize_keys => true)
       @user_pwd = "sam's P@55w0rd~!`@\#\$%^&*()_/{}[]\\|:\";',.<>?/"
       usr = @scim.add(:user, :username => @username, :password => @user_pwd,
-          :emails => [{:value => "sam@example.com"}],
-          :name => {:givenname => "none", :familyname => "none"})
+          :emails => [{:value => 'sam@example.com'}],
+          :name => {:givenname => 'none', :familyname => 'none'})
       @user_id = usr[:id]
     end
 
@@ -81,49 +85,50 @@ describe "UAA Integration:" do
       # TODO: delete user, delete test client
     end
 
-    it "creates a user" do
+    it 'creates a user' do
       @user_id.should be
     end
 
-    it "finds the user by name" do
+    it 'finds the user by name' do
       @scim.id(:user, @username).should == @user_id
     end
 
-    it "gets the user by id" do
+    it 'gets the user by id' do
       user_info = @scim.get(:user, @user_id)
       user_info[:id].should == @user_id
       user_info[:username].should == @username
     end
 
-    it "gets a user token by an implicit grant" do
-      @toki = TokenIssuer.new(@target, "vmc")
+    xit 'gets a user token by  an implicit grant' do
+      #we don't support implicit_grant_with_creds.
+      @toki = TokenIssuer.new(@target, 'vmc')
       token = @toki.implicit_grant_with_creds(:username => @username, :password => @user_pwd)
-      token.info["access_token"].should be
+      token.info['access_token'].should be
       info = Misc.whoami(@target, token.auth_header)
-      info["user_name"].should == @username
-      contents = TokenCoder.decode(token.info["access_token"], :verify => false)
-      contents["user_name"].should == @username
+      info['user_name'].should == @username
+      contents = TokenCoder.decode(token.info['access_token'], :verify => false)
+      contents['user_name'].should == @username
     end
 
     it "changes the user's password by name" do
-      @scim.change_password(@scim.id(:user, @username), "newpassword")[:status].should == "ok"
+      @scim.change_password(@scim.id(:user, @username), 'newpassword')[:status].should == 'ok'
     end
 
-    it "lists all users" do
+    it 'lists all users' do
       user_info = @scim.query(:user)
       user_info.should_not be_nil
     end
 
-    if ENV["UAA_CLIENT_LOGIN"]
-      it "should get a uri to be sent to the user agent to initiate autologin" do
-        logn = ENV["UAA_CLIENT_LOGIN"]
+    if ENV['UAA_CLIENT_LOGIN']
+      it 'should get a uri to be sent to the user agent to initiate autologin' do
+        logn = ENV['UAA_CLIENT_LOGIN']
         toki = TokenIssuer.new(logn, @test_client, @test_secret)
-        redir_uri = "http://call.back/uri_path"
+        redir_uri = 'http://call.back/uri_path'
         uri_parts = toki.autologin_uri(redir_uri, :username => @username,
-            :password => "newpassword").split('?')
+            :password => 'newpassword').split('?')
         uri_parts[0].should == "#{logn}/oauth/authorize"
         params = Util.decode_form(uri_parts[1], :sym)
-        params[:response_type].should == "code"
+        params[:response_type].should == 'code'
         params[:client_id].should == @client_id
         params[:scope].should be_nil
         params[:redirect_uri].should == redir_uri
@@ -132,14 +137,14 @@ describe "UAA Integration:" do
       end
     end
 
-    it "deletes the user" do
+    it 'deletes the user' do
       @scim.delete(:user, @user_id)
       expect { @scim.id(:user, @username) }.to raise_exception(NotFound)
       expect { @scim.get(:user, @user_id) }.to raise_exception(NotFound)
     end
 
-    it "complains about an attempt to delete a non-existent user" do
-      expect { @scim.delete(:user, "non-existent-user") }.to raise_exception(NotFound)
+    it 'complains about an attempt to delete a non-existent user' do
+      expect { @scim.delete(:user, 'non-existent-user') }.to raise_exception(NotFound)
     end
 
   end

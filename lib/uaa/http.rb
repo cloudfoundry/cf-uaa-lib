@@ -15,6 +15,7 @@ require 'base64'
 require 'net/http'
 require 'uaa/util'
 require 'uaa/proxy_options'
+require 'httpclient'
 
 module CF::UAA
 
@@ -78,30 +79,30 @@ module Http
   # @return [String]
   def self.basic_auth(name, password)
     str = "#{name}:#{password}"
-    "Basic " + (Base64.respond_to?(:strict_encode64)?
-        Base64.strict_encode64(str): [str].pack("m").gsub(/\n/, ''))
+    'Basic ' + (Base64.respond_to?(:strict_encode64)?
+        Base64.strict_encode64(str): [str].pack('m').gsub(/\n/, ''))
   end
 
-  JSON_UTF8 = "application/json;charset=utf-8"
-  FORM_UTF8 = "application/x-www-form-urlencoded;charset=utf-8"
+  JSON_UTF8 = 'application/json;charset=utf-8'
+  FORM_UTF8 = 'application/x-www-form-urlencoded;charset=utf-8'
 
   private
 
   def json_get(target, path = nil, style = nil, headers = {})
     raise ArgumentError unless style.nil? || style.is_a?(Symbol)
-    json_parse_reply(style, *http_get(target, path, headers.merge("accept" => JSON_UTF8)))
+    json_parse_reply(style, *http_get(target, path, headers.merge('accept' => JSON_UTF8)))
   end
 
   def json_post(target, path, body, headers = {})
-    http_post(target, path, Util.json(body), headers.merge("content-type" => JSON_UTF8))
+    http_post(target, path, Util.json(body), headers.merge('content-type' => JSON_UTF8))
   end
 
   def json_put(target, path, body, headers = {})
-    http_put(target, path, Util.json(body), headers.merge("content-type" => JSON_UTF8))
+    http_put(target, path, Util.json(body), headers.merge('content-type' => JSON_UTF8))
   end
 
   def json_patch(target, path, body, headers = {})
-    http_patch(target, path, Util.json(body), headers.merge("content-type" => JSON_UTF8))
+    http_patch(target, path, Util.json(body), headers.merge('content-type' => JSON_UTF8))
   end
 
   def json_parse_reply(style, status, body, headers)
@@ -110,17 +111,17 @@ module Http
       raise (status == 404 ? NotFound : BadResponse), "invalid status response: #{status}"
     end
     if body && !body.empty? && (status == 204 || headers.nil? ||
-          headers["content-type"] !~ /application\/json/i)
-      raise BadResponse, "received invalid response content or type"
+          headers['content-type'] !~ /application\/json/i)
+      raise BadResponse, 'received invalid response content or type'
     end
     parsed_reply = Util.json_parse(body, style)
     if status >= 400
-      raise parsed_reply && parsed_reply["error"] == "invalid_token" ?
-          InvalidToken.new(parsed_reply) : TargetError.new(parsed_reply), "error response"
+      raise parsed_reply && parsed_reply['error'] == 'invalid_token' ?
+          InvalidToken.new(parsed_reply) : TargetError.new(parsed_reply), 'error response'
     end
     parsed_reply
   rescue DecodeError
-    raise BadResponse, "invalid JSON response"
+    raise BadResponse, 'invalid JSON response'
   end
 
   def http_get(target, path = nil, headers = {}) request(target, :get, path, nil, headers) end
@@ -129,7 +130,7 @@ module Http
   def http_patch(target, path, body, headers = {}) request(target, :patch, path, body, headers) end
 
   def http_delete(target, path, authorization, zone = nil)
-    hdrs = { "authorization" => authorization }
+    hdrs = { 'authorization' => authorization }
     hdrs['X-Identity-Zone-Subdomain'] = zone if zone
     status = request(target, :delete, path, nil, hdrs)[0]
     unless [200, 204].include?(status)
@@ -138,7 +139,7 @@ module Http
   end
 
   def request(target, method, path, body = nil, headers = {})
-    headers["accept"] = headers["content-type"] if headers["content-type"] && !headers["accept"]
+    headers['accept'] = headers['content-type'] if headers['content-type'] && !headers['accept']
     url = "#{target}#{path}"
 
     logger.debug { "--->\nrequest: #{method} #{url}\n" +
@@ -156,17 +157,23 @@ module Http
   end
 
   def net_http_request(url, method, body, headers)
-    raise ArgumentError unless reqtype = {:delete => Net::HTTP::Delete,
-        :get => Net::HTTP::Get, :post => Net::HTTP::Post, :put => Net::HTTP::Put, :patch => Net::HTTP::Patch}[method]
-    headers["content-length"] = body.length if body
     uri = URI.parse(url)
-    req = reqtype.new(uri.request_uri)
-    headers.each { |k, v| req[k] = v }
     http = http_request(uri)
-    reply, outhdrs = http.request(req, body), {}
-    reply.each_header { |k, v| outhdrs[k] = v }
-    [reply.code.to_i, reply.body, outhdrs]
+    headers['content-length'] = body.length if body
+    case method
+      when :get
+        response = http.get(uri, nil, headers)
+      when :post, :put, :patch
+        response = http.send(method, uri, body, headers)
+      when :delete
+        response = http.delete(uri, headers)
+      else
+        raise ArgumentError
+    end
 
+    response_headers = {}
+    response.header.all.each { |k, v| response_headers[k.downcase] = v }
+    return [response.status.to_i, response.content, response_headers]
   rescue OpenSSL::SSL::SSLError => e
     raise SSLException, "Invalid SSL Cert for #{url}. Use '--skip-ssl-validation' to continue with an insecure target"
   rescue URI::Error, SocketError, SystemCallError => e
@@ -176,25 +183,41 @@ module Http
   end
 
   def http_request(uri)
-    cache_key = URI.join(uri.to_s, "/")
+    cache_key = URI.join(uri.to_s, '/')
     @http_cache ||= {}
     return @http_cache[cache_key] if @http_cache[cache_key]
 
-    http = Net::HTTP.new(uri.host, uri.port, *proxy_options_for(uri))
+    # http = Net::HTTP.new(uri.host, uri.port, *proxy_options_for(uri))
 
     if uri.is_a?(URI::HTTPS)
-      http.use_ssl = true
-
-      if skip_ssl_validation
-        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-      elsif ssl_ca_file
-        http.ca_file = File.expand_path(ssl_ca_file)
-        http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-      elsif ssl_cert_store
-        http.cert_store = ssl_cert_store
-        http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      http = HTTPClient.new.tap do |c|
+        if skip_ssl_validation
+          c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_NONE
+        elsif ssl_ca_file
+          http.ca_file = File.expand_path(ssl_ca_file)
+          c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_PEER
+        elsif ssl_cert_store
+          http.cert_store = ssl_cert_store
+          c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_PEER
+        end
       end
+    else
+      http = HTTPClient.new
     end
+
+    # if uri.is_a?(URI::HTTPS)
+    #   http.use_ssl = true
+    #
+    #   if skip_ssl_validation
+    #     http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    #   elsif ssl_ca_file
+    #     http.ca_file = File.expand_path(ssl_ca_file)
+    #     http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+    #   elsif ssl_cert_store
+    #     http.cert_store = ssl_cert_store
+    #     http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+    #   end
+    # end
 
     @http_cache[cache_key] = http
   end
