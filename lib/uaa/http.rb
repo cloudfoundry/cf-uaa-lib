@@ -161,12 +161,10 @@ module Http
     http = http_request(uri)
     headers['content-length'] = body.length if body
     case method
-      when :get
-        response = http.get(uri, nil, headers)
+      when :get, :delete
+        response = http.send(method, uri, nil, headers)
       when :post, :put, :patch
         response = http.send(method, uri, body, headers)
-      when :delete
-        response = http.delete(uri, headers)
       else
         raise ArgumentError
     end
@@ -194,10 +192,11 @@ module Http
         if skip_ssl_validation
           c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_NONE
         elsif ssl_ca_file
-          http.ca_file = File.expand_path(ssl_ca_file)
+          c.ssl_config.set_trust_ca File.expand_path(ssl_ca_file)
           c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_PEER
         elsif ssl_cert_store
-          http.cert_store = ssl_cert_store
+          # http.cert_store = ssl_cert_store
+          c.ssl_config.cert_store = ssl_cert_store
           c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_PEER
         end
       end
