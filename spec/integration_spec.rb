@@ -15,33 +15,117 @@ require 'spec_helper'
 require 'uaa'
 require 'pp'
 
-# Example config for integration tests with defaults:
-ENV['UAA_CLIENT_ID'] = 'admin'
-ENV['UAA_CLIENT_SECRET'] = 'admin_secret'
+# ENV['UAA_CLIENT_ID'] = 'admin'
+# ENV['UAA_CLIENT_SECRET'] = 'admin_secret'
+# ENV['UAA_CLIENT_TARGET'] = 'https://login.identity.cf-app.com'
+ENV['UAA_CLIENT_TARGET'] = 'http://localhost:8080/uaa'
+
+#Set this variable if you want to test skip_ssl_validation option.
+#Make sure that  UAA_CLIENT_TARGET points to https endpoint with self-signed certificate.
+#It will run  all the tests with ssl validation set to false
+# ENV['SKIP_SSL_VALIDATION'] = 'yes'
+
+#Set this variable to test ssl_ca_file option.
+#Make sure that  UAA_CLIENT_TARGET points to https endpoint with self-signed certificate.
+# ENV['SSL_CA_FILE'] = '~/workspace/identity-cf.cert'
+
+#Set this variable to test cert_store option.
+#Make sure that  UAA_CLIENT_TARGET points to https endpoint with self-signed certificate.
+# ENV['CERT_STORE'] = '~/workspace/identity-cf.cert'
 
 module CF::UAA
 
-# ENV['UAA_CLIENT_TARGET'] = 'http://localhost:8080/uaa'
-ENV['UAA_CLIENT_TARGET'] = 'https://login.identity.cf-app.com/'
+  def self.admin_scim(options)
+    admin_client = ENV['UAA_CLIENT_ID'] || 'admin'
+    admin_secret = ENV['UAA_CLIENT_SECRET'] || 'adminsecret'
+    target = ENV['UAA_CLIENT_TARGET']
+
+    admin_token_issuer = TokenIssuer.new(target, admin_client, admin_secret, options)
+    Scim.new(target, admin_token_issuer.client_credentials_grant.auth_header, options.merge(:symbolize_keys => true))
+  end
+
   if ENV['UAA_CLIENT_TARGET']
     describe 'UAA Integration:' do
 
+      let(:options)  { @options }
+      let(:token_issuer) { TokenIssuer.new(@target, @test_client, @test_secret, options) }
+      let(:scim) { Scim.new(@target, token_issuer.client_credentials_grant.auth_header, options.merge(:symbolize_keys => true)) }
+
       before :all do
-        #Util.default_logger(:trace)
-        @admin_client = ENV['UAA_CLIENT_ID'] || 'admin'
-        @admin_secret = ENV['UAA_CLIENT_SECRET'] || 'adminsecret'
+        @options = {}
+        if ENV['SKIP_SSL_VALIDATION']
+          @options = {:skip_ssl_validation => true}
+        end
         @target = ENV['UAA_CLIENT_TARGET']
-        @username = "sam_#{Time.now.to_i}"
-        @options = {:skip_ssl_validation => true}
-        @options = {:ssl_ca_file => '~/workspace/identity-cf.cert'}
-        cert_store = OpenSSL::X509::Store.new
-        cert_store.add_file File.expand_path('~/workspace/identity-cf.cert')
-        @options = {:ssl_cert_store => cert_store}
+        @test_client = "test_client_#{Time.now.to_i}"
+        @test_secret = '+=tEsTsEcRet~!@'
+        gids = ['clients.read', 'scim.read', 'scim.write', 'uaa.resource', 'password.write']
+        test_client = CF::UAA::admin_scim(@options).add(:client, :client_id => @test_client, :client_secret => @test_secret,
+                                     :authorities => gids, :authorized_grant_types => ['client_credentials', 'password'],
+                                     :scope => ['openid', 'password.write'])
+        expect(test_client[:client_id]).to eq(@test_client)
       end
 
-      let(:token_issuer) { TokenIssuer.new(@target, @admin_client, @admin_secret, @options) }
+      after :all do
+        admin_scim = CF::UAA::admin_scim(@options)
+        admin_scim.delete(:client, @test_client)
+        expect { admin_scim.id(:client, @test_client) }.to raise_exception(NotFound)
+      end
 
-      let(:scim) { Scim.new(@target, token_issuer.client_credentials_grant.auth_header, @options.merge(:symbolize_keys => true)) }
+      if ENV['SKIP_SSL_VALIDATION']
+        context 'when ssl certificate is self-signed' do
+          let(:options)  { {:skip_ssl_validation => false} }
+
+          it 'fails if skip_ssl_validation is false' do
+            expect{ scim }.to raise_exception(CF::UAA::SSLException)
+          end
+        end
+      end
+
+      if ENV['SSL_CA_FILE']
+        context 'when you do not skip SSL validation' do
+          context 'when you provide cert' do
+            let(:options)  { {:ssl_ca_file => ENV['SSL_CA_FILE']} }
+
+            it 'works' do
+              expect(token_issuer.prompts).to_not be_nil
+            end
+          end
+
+          context 'if you do not provide cert file' do
+            let(:options)  { {} }
+
+            it 'fails' do
+              expect{ scim }.to raise_exception(CF::UAA::SSLException)
+            end
+          end
+        end
+      end
+
+      if ENV['CERT_STORE']
+        context 'when you do not skip SSL validation' do
+          context 'when you provide cert store' do
+            let(:cert_store) do
+              cert_store = OpenSSL::X509::Store.new
+              cert_store.add_file File.expand_path(ENV['CERT_STORE'])
+              cert_store
+            end
+
+            let(:options)  { {:ssl_cert_store => cert_store} }
+            it 'works' do
+              expect(token_issuer.prompts).to_not be_nil
+            end
+          end
+
+          context 'when you do not provide cert store' do
+            let(:options)  { {} }
+
+            it 'fails' do
+              expect{ scim }.to raise_exception(CF::UAA::SSLException)
+            end
+          end
+        end
+      end
 
       it 'should report the uaa client version' do
         expect(VERSION).to match(/\d.\d.\d/)
@@ -62,20 +146,10 @@ ENV['UAA_CLIENT_TARGET'] = 'https://login.identity.cf-app.com/'
       it 'complains about an attempt to delete a non-existent user' do
         expect { scim.delete(:user, 'non-existent-user') }.to raise_exception(NotFound)
       end
-      
+
       context 'as a client' do
         before :each do
-          @test_client = "test_client_#{Time.now.to_i}"
-          @test_secret = '+=tEsTsEcRet~!@'
-          gids = ['clients.read', 'scim.read', 'scim.write', 'uaa.resource', 'password.write']
-          token_issuer = TokenIssuer.new(@target, @admin_client, @admin_secret, @options)
-          scim = Scim.new(@target, token_issuer.client_credentials_grant.auth_header, @options.merge(:symbolize_keys => true))
-          new_client = scim.add(:client, :client_id => @test_client, :client_secret => @test_secret,
-                                :authorities => gids, :authorized_grant_types => ['client_credentials', 'password'],
-                                :scope => ['openid', 'password.write'])
-          expect(new_client[:client_id]).to eq(@test_client)
           @username = "sam_#{Time.now.to_i}"
-
           @user_pwd = "sam's P@55w0rd~!`@\#\$%^&*()_/{}[]\\|:\";',.<>?/"
           usr = scim.add(:user, :username => @username, :password => @user_pwd,
                          :emails => [{:value => 'sam@example.com'}],
@@ -110,17 +184,6 @@ ENV['UAA_CLIENT_TARGET'] = 'https://login.identity.cf-app.com/'
             expect(user_info[:username]).to eq(@username)
           end
 
-          xit 'gets a user token by  an implicit grant' do
-            #we don't support implicit_grant_with_creds.
-            @token_issuer = TokenIssuer.new(@target, 'vmc')
-            token = @token_issuer.implicit_grant_with_creds(:username => @username, :password => @user_pwd)
-            token.info['access_token'].should be
-            info = Misc.whoami(@target, token.auth_header)
-            info['user_name'].should == @username
-            contents = TokenCoder.decode(token.info['access_token'], :verify => false)
-            contents['user_name'].should == @username
-          end
-
           it 'lists all users' do
             expect(scim.query(:user)).to be
           end
@@ -136,7 +199,7 @@ ENV['UAA_CLIENT_TARGET'] = 'https://login.identity.cf-app.com/'
             expect(uri_parts[0]).to eq("#{ENV['UAA_CLIENT_TARGET']}/oauth/authorize")
             params = Util.decode_form(uri_parts[1], :sym)
             expect(params[:response_type]).to eq('code')
-            expect(params[:client_id]).to eq(@admin_client)
+            expect(params[:client_id]).to eq(@test_client)
             expect(params[:scope]).to be_nil
             expect(params[:redirect_uri]).to eq(redir_uri)
             expect(params[:state]).to be

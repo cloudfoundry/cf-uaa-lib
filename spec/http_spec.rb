@@ -26,11 +26,13 @@ describe Http do
   end
 
   let(:http_instance) { HttpTest.new }
-  let!(:http_double) do
+
+  let(:http_double) do
     http_double = double('http').as_null_object
-    Net::HTTP.stub(:new).and_return(http_double)
+    expect(HTTPClient).to receive(:new).and_return(http_double)
     http_double
   end
+
   let(:cert_store) { double('OpenSSL::X509::Store') }
 
   describe 'set_request_handler' do
@@ -46,64 +48,62 @@ describe Http do
   end
 
   describe 'http_get' do
-    context 'when proxy is specified' do
-      let(:reply_double) { double('http reply', each_header: {}).as_null_object }
-
-      it 'utilizes it' do
-        http_double.stub(:request).and_return(reply_double)
-
-        http_instance.http_proxy = 'user:password@http-proxy.example.com:1234'
-        http_instance.https_proxy = 'user:password@https-proxy.example.com:1234'
-
-        http_instance.http_get('http://example.com')
-
-        expect(Net::HTTP).to have_received(:new).with(anything, anything, 'http-proxy.example.com', 1234, 'user', 'password')
-      end
-    end
 
     context 'when certificate is not valid' do
       it 'raises an SSLException' do
-        http_double.stub(:request).and_raise(OpenSSL::SSL::SSLError)
+        expect(http_double).to receive(:get).and_raise(OpenSSL::SSL::SSLError)
 
         expect { http_instance.http_get('https://example.com') }.to raise_error(CF::UAA::SSLException)
       end
     end
 
     context 'when skipping ssl validation' do
+      let(:ssl_config) { double('ssl_config') }
+
       it 'sets verify mode to VERIFY_NONE' do
         http_instance.skip_ssl_validation = true
+
+        expect(http_double).to receive(:ssl_config).and_return(ssl_config)
+        expect(ssl_config).to receive(:verify_mode=).with(OpenSSL::SSL::VERIFY_NONE)
         http_instance.http_get('https://uncached.example.com')
-        expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_NONE)
       end
     end
 
     context 'when validating ssl' do
       it 'does not set verify mode' do
+        expect(http_double).not_to receive(:ssl_config)
         http_instance.http_get('https://example.com')
-        expect(http_double).not_to have_received(:verify_mode=)
       end
     end
 
     context 'when ssl certificate is provided' do
+
+      let(:ssl_config) { double('ssl_config') }
+
       it 'passes it' do
         http_instance.ssl_ca_file = '/fake-ca-file'
-        http_instance.http_get('https://uncached.example.com')
 
-        expect(http_double).to have_received(:ca_file=).with('/fake-ca-file')
-        expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+        expect(http_double).to receive(:ssl_config).and_return(ssl_config).twice
+        expect(ssl_config).to receive(:set_trust_ca).with('/fake-ca-file')
+        expect(ssl_config).to receive(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+
+        http_instance.http_get('https://uncached.example.com')
       end
     end
+
     context 'when ssl cert store is provided' do
+      let(:ssl_config) { double('ssl_config') }
+
       it 'passes it' do
         http_instance.ssl_cert_store = cert_store
-        http_instance.http_get('https://uncached.example.com')
 
-        expect(http_double).to have_received(:cert_store=).with(cert_store)
-        expect(http_double).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+        expect(http_double).to receive(:ssl_config).and_return(ssl_config).twice
+        expect(ssl_config).to receive(:cert_store=).with(cert_store)
+        expect(ssl_config).to receive(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+
+        http_instance.http_get('https://uncached.example.com')
       end
     end
   end
-
 end
-
 end

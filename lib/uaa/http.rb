@@ -12,9 +12,7 @@
 #++
 
 require 'base64'
-require 'net/http'
 require 'uaa/util'
-require 'uaa/proxy_options'
 require 'httpclient'
 
 module CF::UAA
@@ -47,11 +45,10 @@ class InvalidToken < TargetError; end
 
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
-  include ProxyOptions
 
   def self.included(base)
     base.class_eval do
-      attr_accessor :http_proxy, :https_proxy, :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store, :zone
+      attr_accessor :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store, :zone
     end
   end
 
@@ -159,7 +156,7 @@ module Http
   def net_http_request(url, method, body, headers)
     uri = URI.parse(url)
     http = http_request(uri)
-    headers['content-length'] = body.length if body
+    headers['content-length'] = body.length.to_s if body
     case method
       when :get, :delete
         response = http.send(method, uri, nil, headers)
@@ -185,8 +182,6 @@ module Http
     @http_cache ||= {}
     return @http_cache[cache_key] if @http_cache[cache_key]
 
-    # http = Net::HTTP.new(uri.host, uri.port, *proxy_options_for(uri))
-
     if uri.is_a?(URI::HTTPS)
       http = HTTPClient.new.tap do |c|
         if skip_ssl_validation
@@ -195,7 +190,6 @@ module Http
           c.ssl_config.set_trust_ca File.expand_path(ssl_ca_file)
           c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_PEER
         elsif ssl_cert_store
-          # http.cert_store = ssl_cert_store
           c.ssl_config.cert_store = ssl_cert_store
           c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_PEER
         end
@@ -203,20 +197,6 @@ module Http
     else
       http = HTTPClient.new
     end
-
-    # if uri.is_a?(URI::HTTPS)
-    #   http.use_ssl = true
-    #
-    #   if skip_ssl_validation
-    #     http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-    #   elsif ssl_ca_file
-    #     http.ca_file = File.expand_path(ssl_ca_file)
-    #     http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-    #   elsif ssl_cert_store
-    #     http.cert_store = ssl_cert_store
-    #     http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-    #   end
-    # end
 
     @http_cache[cache_key] = http
   end

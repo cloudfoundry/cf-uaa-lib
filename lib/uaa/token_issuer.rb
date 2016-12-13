@@ -112,8 +112,6 @@ class TokenIssuer
     self.skip_ssl_validation = options[:skip_ssl_validation]
     self.ssl_ca_file = options[:ssl_ca_file]
     self.ssl_cert_store = options[:ssl_cert_store]
-    self.http_proxy = options[:http_proxy]
-    self.https_proxy = options[:https_proxy]
   end
 
   # Allows an app to discover what credentials are required for
