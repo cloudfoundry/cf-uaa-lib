@@ -18,7 +18,7 @@ require 'pp'
 # ENV['UAA_CLIENT_ID'] = 'admin'
 # ENV['UAA_CLIENT_SECRET'] = 'admin_secret'
 # ENV['UAA_CLIENT_TARGET'] = 'https://login.identity.cf-app.com'
-ENV['UAA_CLIENT_TARGET'] = 'http://localhost:8080/uaa'
+# ENV['UAA_CLIENT_TARGET'] = 'http://localhost:8080/uaa'
 
 #Set this variable if you want to test skip_ssl_validation option.
 #Make sure that  UAA_CLIENT_TARGET points to https endpoint with self-signed certificate.
