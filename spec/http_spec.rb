@@ -15,12 +15,10 @@ require 'spec_helper'
 require 'uaa/http'
 require 'uaa/version'
 
-module CF::UAA
-
-describe Http do
+describe CF::UAA::Http do
 
   class HttpTest
-    include Http
+    include CF::UAA::Http
 
     public :http_get
   end
@@ -48,6 +46,16 @@ describe Http do
   end
 
   describe 'http_get' do
+
+    context 'when response has no status' do
+      let(:response) { double('http::message') }
+      it 'raises an HTTPException error' do
+        expect(response).to receive(:status)
+        expect(response).to receive(:content).and_return('TEST')
+        expect(http_double).to receive(:get).and_return(response)
+        expect { http_instance.http_get('https://example.com') }.to raise_error(CF::UAA::HTTPException, "Can't parse response from the server TEST")
+      end
+    end
 
     context 'when certificate is not valid' do
       it 'raises an SSLException' do
@@ -105,5 +113,4 @@ describe Http do
       end
     end
   end
-end
 end

@@ -166,6 +166,9 @@ module Http
         raise ArgumentError
     end
 
+    unless response.status
+      raise HTTPException.new "Can't parse response from the server #{response.content}"
+    end
     response_headers = {}
     response.header.all.each { |k, v| response_headers[k.downcase] = v }
     return [response.status.to_i, response.content, response_headers]
@@ -173,8 +176,6 @@ module Http
     raise SSLException, "Invalid SSL Cert for #{url}. Use '--skip-ssl-validation' to continue with an insecure target"
   rescue URI::Error, SocketError, SystemCallError => e
     raise BadTarget, "error: #{e.message}"
-  rescue Net::HTTPBadResponse => e
-    raise HTTPException, "HTTP exception: #{e.class}: #{e}"
   end
 
   def http_request(uri)
