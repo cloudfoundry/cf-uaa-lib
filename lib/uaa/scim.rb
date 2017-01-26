@@ -224,6 +224,14 @@ class Scim
     info
   end
 
+  # Get meta information about client
+  # @param client_id
+  # @return (client meta)
+  def get_client_meta(client_id)
+    path = type_info(:client, :path)
+    json_get(@target, "#{path}/#{URI.encode(client_id)}/meta", @key_style, headers)
+  end
+
   # Collects all pages of entries from a query
   # @param type (see #query)
   # @param [Hash] query may contain the following keys:

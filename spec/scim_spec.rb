@@ -58,6 +58,18 @@ describe Scim do
     result['id'].should == 'id12345'
   end
 
+  it 'gets client meta' do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/oauth/clients/id12345/meta"
+      method.should == :get
+      check_headers(headers, nil, :json, nil)
+      [200, '{"id":"id12345", "created_by": "Marissa"}', {'content-type' => 'application/json'}]
+    end
+    result = subject.get_client_meta('id12345')
+    result['id'].should == 'id12345'
+    result['created_by'].should == 'Marissa'
+  end
+
   it 'replaces an object' do
     obj = {:hair => 'black', :shoe_size => 'medium', :eye_color => ['hazel', 'brown'],
           :name => 'fredrick', :meta => {:version => 'v567'}, :id => 'id12345'}
