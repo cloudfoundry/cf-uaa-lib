@@ -130,8 +130,11 @@ class Info
   # @param [String] token_type as retrieved by {TokenIssuer}. See {TokenInfo}.
   # @return [Hash] contents of the token
   def decode_token(client_id, client_secret, token, token_type = "bearer", audience_ids = nil)
-    reply = json_get(target, "/check_token?token_type=#{token_type}&token=#{token}",
-        key_style, "authorization" => Http.basic_auth(client_id, client_secret))
+    reply = json_parse_reply(key_style, *request(target, :post, '/check_token',
+                                                 Util.encode_form(:token => token),
+                                                 "authorization" => Http.basic_auth(client_id, client_secret),
+                                                 "content-type" => Http::FORM_UTF8,"accept" => Http::JSON_UTF8))
+
     auds = Util.arglist(reply[:aud] || reply['aud'])
     if audience_ids && (!auds || (auds & audience_ids).empty?)
       raise AuthError, "invalid audience: #{auds.join(' ')}"
