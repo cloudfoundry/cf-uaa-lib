@@ -113,7 +113,7 @@ module Http
     end
     parsed_reply = Util.json_parse(body, style)
     if status >= 400
-      raise parsed_reply && parsed_reply['error'] == 'invalid_token' ?
+      raise parsed_reply && parsed_reply[Util.hash_key('error', style)] == 'invalid_token' ?
           InvalidToken.new(parsed_reply) : TargetError.new(parsed_reply), 'error response'
     end
     parsed_reply
