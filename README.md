@@ -23,7 +23,7 @@ For documentation see: https://rubygems.org/gems/cf-uaa-lib
     token_issuer = CF::UAA::TokenIssuer.new("https://uaa.cloudfoundry.com", "vmc")
     puts token_issuer.prompts.inspect
     token = token_issuer.implicit_grant_with_creds(username: "<your_username>", password: "<your_password>")
-    token_info = TokenCoder.decode(token.info["access_token"], nil, nil, false) #token signature not verified
+    token_info = CF::UAA::TokenCoder.decode(token.info["access_token"], nil, nil, false) #token signature not verified
     puts token_info["user_name"]
 
 ## Tests
