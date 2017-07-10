@@ -78,14 +78,16 @@ describe CF::UAA::Http do
     end
 
     context 'when validating ssl' do
-      it 'does not set verify mode' do
-        expect(http_double).not_to receive(:ssl_config)
+      let(:ssl_config) { double('ssl_config') }
+
+      it 'sets default values' do
+        expect(http_double).to receive(:ssl_config).and_return(ssl_config)
+        expect(ssl_config).to receive(:set_default_paths)
         http_instance.http_get('https://example.com')
       end
     end
 
     context 'when ssl certificate is provided' do
-
       let(:ssl_config) { double('ssl_config') }
 
       it 'passes it' do
