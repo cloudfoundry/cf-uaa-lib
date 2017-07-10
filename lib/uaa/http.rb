@@ -193,6 +193,8 @@ module Http
         elsif ssl_cert_store
           c.ssl_config.cert_store = ssl_cert_store
           c.ssl_config.verify_mode = OpenSSL::SSL::VERIFY_PEER
+        else
+          c.ssl_config.set_default_paths
         end
       end
     else

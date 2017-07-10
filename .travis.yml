@@ -6,6 +6,4 @@ before_install:
 
 rvm:
   - 1.9.3
-
-
-
+  - 2.4.1
