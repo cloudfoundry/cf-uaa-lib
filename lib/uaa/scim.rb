@@ -42,16 +42,27 @@ class Scim
 
   def force_attr(k)
     kd = k.to_s.downcase
-    kc = {"username" => "userName", "familyname" => "familyName",
-      "givenname" => "givenName", "middlename" => "middleName",
-      "honorificprefix" => "honorificPrefix",
-      "honorificsuffix" => "honorificSuffix", "displayname" => "displayName",
-      "nickname" => "nickName", "profileurl" => "profileUrl",
-      "streetaddress" => "streetAddress", "postalcode" => "postalCode",
-      "usertype" => "userType", "preferredlanguage" => "preferredLanguage",
-      "x509certificates" => "x509Certificates", "lastmodified" => "lastModified",
-      "externalid" => "externalId", "phonenumbers" => "phoneNumbers",
-      "startindex" => "startIndex"}[kd]
+    kc = {
+        'username' => 'userName',
+        'familyname' => 'familyName',
+        'givenname' => 'givenName',
+        'middlename' => 'middleName',
+        'honorificprefix' => 'honorificPrefix',
+        'honorificsuffix' => 'honorificSuffix',
+        'displayname' => 'displayName',
+        'nickname' => 'nickName',
+        'profileurl' => 'profileUrl',
+        'streetaddress' => 'streetAddress',
+        'postalcode' => 'postalCode',
+        'usertype' => 'userType',
+        'preferredlanguage' => 'preferredLanguage',
+        'x509certificates' => 'x509Certificates',
+        'lastmodified' => 'lastModified',
+        'externalid' => 'externalId',
+        'phonenumbers' => 'phoneNumbers',
+        'startindex' => 'startIndex',
+        'zoneid' => 'zoneId'
+    }[kd]
     kc || kd
   end
 
@@ -76,15 +87,44 @@ class Scim
 
   # an attempt to hide some scim and uaa oddities
   def type_info(type, elem)
-    scimfo = {:user => ["/Users", "userName"], :group => ["/Groups", "displayName"],
-      :client => ["/oauth/clients", 'client_id'], :user_id => ["/ids/Users", 'userName'], :group_mapping => ["/Groups/External", "externalGroup"]}
-    unless elem == :path || elem == :name_attr
-      raise ArgumentError, "scim schema element must be :path or :name_attr"
-    end
-    unless ary = scimfo[type]
+    scimfo = {
+        user: {
+            path: '/Users',
+            name_attr: 'userName',
+            origin_attr: 'origin'
+        },
+        group: {
+            path: '/Groups',
+            name_attr: 'displayName',
+            origin_attr: 'zoneid'
+        },
+        client: {
+            path: '/oauth/clients',
+            name_attr: 'client_id'
+        },
+        user_id: {
+            path: '/ids/Users',
+            name_attr: 'userName'
+        },
+        group_mapping: {
+            path: '/Groups/External',
+            name_attr: 'externalGroup'
+        }
+    }
+
+    type_info = scimfo[type]
+
+    unless type_info
       raise ArgumentError, "scim resource type must be one of #{scimfo.keys.inspect}"
     end
-    ary[elem == :path ? 0 : 1]
+
+    value = type_info[elem]
+
+    unless value
+      raise ArgumentError, "scim schema element must be one of #{type_info.keys.inspect}"
+    end
+
+    value
   end
 
   def jkey(k) @key_style == :down ? k.to_s : k end
@@ -262,9 +302,16 @@ class Scim
   # @param type (see #add)
   # @return [Array] array of name/id hashes for each object found
   def ids(type, *names)
-    na = type_info(type, :name_attr)
-    filter = names.map { |n| "#{na} eq \"#{n}\""}
-    all_pages(type, :attributes => "id,#{na}", :filter => filter.join(" or "))
+    name_attr = type_info(type, :name_attr)
+    origin_attr = type_info(type, :origin_attr)
+
+    filter = names.map do |n|
+      "#{name_attr} eq \"#{n}\""
+    end
+
+    attributes = ['id', name_attr, origin_attr]
+
+    all_pages(type, attributes: attributes.join(','), filter: filter.join(' or '))
   end
 
   # Convenience method to query for single object by name.
