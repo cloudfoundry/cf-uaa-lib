@@ -104,11 +104,13 @@ class Scim
         },
         user_id: {
             path: '/ids/Users',
-            name_attr: 'userName'
+            name_attr: 'userName',
+            origin_attr: 'origin',
         },
         group_mapping: {
             path: '/Groups/External',
-            name_attr: 'externalGroup'
+            name_attr: 'externalGroup',
+            origin_attr: 'origin'
         }
     }
 
