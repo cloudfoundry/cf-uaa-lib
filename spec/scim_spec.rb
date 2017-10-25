@@ -113,6 +113,7 @@ describe Scim do
     subject.set_request_handler do |url, method, body, headers|
       url.should =~ %r{^#{@target}/Users\?}
       url.should =~ %r{[\?&]attributes=id(&|$)}
+      url.should =~ %r{[\?&]includeInactive=true(&|$)}
       url.should =~ %r{[\?&]startIndex=[12](&|$)}
       method.should == :get
       check_headers(headers, nil, :json, nil)
@@ -121,7 +122,7 @@ describe Scim do
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":2,"RESOURCES":[{"id":"id67890"}]}'
       [200, reply, {'content-type' => 'application/json'}]
     end
-    result = subject.all_pages(:user, :attributes => 'id')
+    result = subject.all_pages(:user, :attributes => 'id', :includeInactive => true)
     [result[0]['id'], result[1]['id']].to_set.should == ['id12345', 'id67890'].to_set
   end
 

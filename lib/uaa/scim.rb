@@ -61,7 +61,8 @@ class Scim
         'externalid' => 'externalId',
         'phonenumbers' => 'phoneNumbers',
         'startindex' => 'startIndex',
-        'zoneid' => 'zoneId'
+        'zoneid' => 'zoneId',
+        'includeinactive' => 'includeInactive'
     }[kd]
     kc || kd
   end
