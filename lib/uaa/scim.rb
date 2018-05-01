@@ -149,10 +149,8 @@ class Scim
   def initialize(target, auth_header, options = {})
     @target, @auth_header = target, auth_header
     @key_style = options[:symbolize_keys] ? :downsym : :down
-    self.skip_ssl_validation = options[:skip_ssl_validation]
-    self.ssl_ca_file = options[:ssl_ca_file]
-    self.ssl_cert_store = options[:ssl_cert_store]
     @zone = options[:zone]
+    initialize_http_options(options)
   end
 
   # Convenience method to get the naming attribute, e.g. userName for user,

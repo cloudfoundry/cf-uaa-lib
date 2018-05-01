@@ -46,10 +46,20 @@ class InvalidToken < TargetError; end
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
 
+  # delegate SSL options into this module
+  # add a default request http_timeout to module
+
   def self.included(base)
     base.class_eval do
-      attr_accessor :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store, :zone
+      attr_reader :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store, :http_timeout
     end
+  end
+
+  def initialize_http_options(options)
+    @skip_ssl_validation = options[:skip_ssl_validation]
+    @ssl_ca_file = options[:ssl_ca_file]
+    @ssl_cert_store = options[:ssl_cert_store]
+    @http_timeout = options[:http_timeout]
   end
 
   # Sets the current logger instance to recieve error messages.
@@ -199,6 +209,12 @@ module Http
       end
     else
       http = HTTPClient.new
+    end
+
+    if http_timeout
+      http.connect_timeout = http_timeout
+      http.send_timeout = http_timeout
+      http.receive_timeout = http_timeout
     end
 
     @http_cache[cache_key] = http

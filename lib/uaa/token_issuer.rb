@@ -109,9 +109,7 @@ class TokenIssuer
     @target, @client_id, @client_secret = target, client_id, client_secret
     @token_target = options[:token_target] || target
     @key_style = options[:symbolize_keys] ? :sym : nil
-    self.skip_ssl_validation = options[:skip_ssl_validation]
-    self.ssl_ca_file = options[:ssl_ca_file]
-    self.ssl_cert_store = options[:ssl_cert_store]
+    initialize_http_options(options)
   end
 
   # Allows an app to discover what credentials are required for

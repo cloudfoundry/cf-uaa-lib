@@ -69,7 +69,7 @@ describe CF::UAA::Http do
       let(:ssl_config) { double('ssl_config') }
 
       it 'sets verify mode to VERIFY_NONE' do
-        http_instance.skip_ssl_validation = true
+        http_instance.initialize_http_options({skip_ssl_validation: true})
 
         expect(http_double).to receive(:ssl_config).and_return(ssl_config)
         expect(ssl_config).to receive(:verify_mode=).with(OpenSSL::SSL::VERIFY_NONE)
@@ -91,7 +91,7 @@ describe CF::UAA::Http do
       let(:ssl_config) { double('ssl_config') }
 
       it 'passes it' do
-        http_instance.ssl_ca_file = '/fake-ca-file'
+        http_instance.initialize_http_options({ssl_ca_file: '/fake-ca-file'})
 
         expect(http_double).to receive(:ssl_config).and_return(ssl_config).twice
         expect(ssl_config).to receive(:set_trust_ca).with('/fake-ca-file')
@@ -105,11 +105,35 @@ describe CF::UAA::Http do
       let(:ssl_config) { double('ssl_config') }
 
       it 'passes it' do
-        http_instance.ssl_cert_store = cert_store
+        http_instance.initialize_http_options({ssl_cert_store: cert_store})
 
         expect(http_double).to receive(:ssl_config).and_return(ssl_config).twice
         expect(ssl_config).to receive(:cert_store=).with(cert_store)
         expect(ssl_config).to receive(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+
+        http_instance.http_get('https://uncached.example.com')
+      end
+    end
+
+    context 'when an http request timeout is provided' do
+      it 'passes it' do
+        http_instance.initialize_http_options({http_timeout: 10})
+
+        expect(http_double).to receive(:connect_timeout=)
+        expect(http_double).to receive(:send_timeout=)
+        expect(http_double).to receive(:receive_timeout=)
+
+        http_instance.http_get('https://uncached.example.com')
+      end
+    end
+
+    context 'when an http request timeout is not provided' do
+      it 'does not override the default' do
+        http_instance.initialize_http_options({})
+
+        expect(http_double).not_to receive(:connect_timeout=)
+        expect(http_double).not_to receive(:send_timeout=)
+        expect(http_double).not_to receive(:receive_timeout=)
 
         http_instance.http_get('https://uncached.example.com')
       end

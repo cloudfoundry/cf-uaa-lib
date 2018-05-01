@@ -44,6 +44,32 @@ module CF::UAA
     Scim.new(target, admin_token_issuer.client_credentials_grant.auth_header, options.merge(:symbolize_keys => true))
   end
 
+  describe 'when UAA does not respond' do
+    let(:http_timeout) { 0.01 }
+    let(:scim) { Scim.new(@target, "", {:http_timeout => http_timeout}) }
+    let(:token_issuer) { TokenIssuer.new(@target, "", "", {:http_timeout => http_timeout}) }
+
+    before :all do
+      @target = 'http://10.255.255.1'
+    end
+
+    it 'times out the connection at the configured time for the scim' do
+      expect {
+        Timeout.timeout(http_timeout + 1) do
+          scim.get(:user, "admin")
+        end
+      }.to raise_error HTTPClient::TimeoutError
+      end
+
+    it 'times out the connection at the configured time for the token issuer' do
+      expect {
+        Timeout.timeout(http_timeout + 1) do
+          token_issuer.client_credentials_grant
+        end
+      }.to raise_error HTTPClient::TimeoutError
+    end
+  end
+
   if ENV['UAA_CLIENT_TARGET']
     describe 'UAA Integration:' do
 
@@ -128,7 +154,7 @@ module CF::UAA
       end
 
       it 'should report the uaa client version' do
-        expect(VERSION).to match(/\d.\d.\d/)
+        expect(VERSION).to match(/\d+.\d+.\d+/)
       end
 
       it 'makes sure the server is there by getting the prompts for an implicit grant' do
