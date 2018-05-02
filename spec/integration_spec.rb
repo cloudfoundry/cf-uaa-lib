@@ -60,7 +60,7 @@ module CF::UAA
         Timeout.timeout(default_http_client_timeout - 1) do
           scim.get(:user, "admin")
         end
-      }.to raise_error HTTPClient::TimeoutError
+      }.to raise_error HTTPException
     end
 
     it 'times out the connection at the configured time for the token issuer' do
@@ -68,7 +68,7 @@ module CF::UAA
         Timeout.timeout(default_http_client_timeout - 1) do
           token_issuer.client_credentials_grant
         end
-      }.to raise_error HTTPClient::TimeoutError
+      }.to raise_error HTTPException
     end
   end
 
