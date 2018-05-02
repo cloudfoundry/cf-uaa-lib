@@ -116,12 +116,12 @@ describe CF::UAA::Http do
     end
 
     context 'when an http request timeout is provided' do
-      it 'passes it' do
+      it 'sets all timeouts on the http clien to the http_timeout' do
         http_instance.initialize_http_options({http_timeout: 10})
 
-        expect(http_double).to receive(:connect_timeout=)
-        expect(http_double).to receive(:send_timeout=)
-        expect(http_double).to receive(:receive_timeout=)
+        expect(http_double).to receive(:connect_timeout=).with(10)
+        expect(http_double).to receive(:send_timeout=).with(10)
+        expect(http_double).to receive(:receive_timeout=).with(10)
 
         http_instance.http_get('https://uncached.example.com')
       end

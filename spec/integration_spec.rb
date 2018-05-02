@@ -46,24 +46,26 @@ module CF::UAA
 
   describe 'when UAA does not respond' do
     let(:http_timeout) { 0.01 }
+    let(:default_http_client_timeout) { 60 }
     let(:scim) { Scim.new(@target, "", {:http_timeout => http_timeout}) }
     let(:token_issuer) { TokenIssuer.new(@target, "", "", {:http_timeout => http_timeout}) }
+    let(:blackhole_ip) { '10.255.255.1'}
 
-    before :all do
-      @target = 'http://10.255.255.1'
+    before do
+      @target = "http://#{blackhole_ip}"
     end
 
     it 'times out the connection at the configured time for the scim' do
       expect {
-        Timeout.timeout(http_timeout + 1) do
+        Timeout.timeout(default_http_client_timeout - 1) do
           scim.get(:user, "admin")
         end
       }.to raise_error HTTPClient::TimeoutError
-      end
+    end
 
     it 'times out the connection at the configured time for the token issuer' do
       expect {
-        Timeout.timeout(http_timeout + 1) do
+        Timeout.timeout(default_http_client_timeout - 1) do
           token_issuer.client_credentials_grant
         end
       }.to raise_error HTTPClient::TimeoutError

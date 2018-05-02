@@ -46,9 +46,6 @@ class InvalidToken < TargetError; end
 # Utility accessors and methods for objects that want to access JSON web APIs.
 module Http
 
-  # delegate SSL options into this module
-  # add a default request http_timeout to module
-
   def self.included(base)
     base.class_eval do
       attr_reader :skip_ssl_validation, :ssl_ca_file, :ssl_cert_store, :http_timeout
