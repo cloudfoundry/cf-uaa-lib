@@ -64,7 +64,7 @@ class TokenCoder
   def self.encode(token_body, options = {}, obsolete1 = nil, obsolete2 = nil)
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
       # deprecated: def self.encode(token_body, skey, pkey = nil, algo = 'HS256')
-      warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
+      warn "WARNING: #{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
       options = {:skey => options }
       options[:pkey], options[:algorithm] = obsolete1, obsolete2
     end
@@ -95,7 +95,7 @@ class TokenCoder
   def self.decode(token, options = {}, obsolete1 = nil, obsolete2 = nil)
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
       # deprecated: def self.decode(token, skey = nil, pkey = nil, verify = true)
-      warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
+      warn "WARNING: #{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
       options = {:skey => options }
       options[:pkey], options[:verify] = obsolete1, obsolete2
     end
@@ -106,10 +106,16 @@ class TokenCoder
     signing_input = [header_segment, payload_segment].join('.')
     header = Util.json_decode64(header_segment)
     payload = Util.json_decode64(payload_segment, (:sym if options[:symbolize_keys]))
-    return payload unless options[:verify]
+    unless options[:verify]
+      warn "WARNING: Decoding token without verifying it was signed by its authoring UAA"
+      return payload
+    end
     raise SignatureNotAccepted, "Signature algorithm not accepted" unless
         options[:accept_algorithms].include?(algo = header["alg"])
-    return payload if algo == 'none'
+    if algo == 'none'
+      warn "WARNING: Decoding token that explicitly states it has not been signed by an authoring UAA"
+      return payload
+    end
     signature = Util.decode64(crypto_segment)
     if ["HS256", "HS384", "HS512"].include?(algo)
       raise InvalidSignature, "Signature verification failed" unless
