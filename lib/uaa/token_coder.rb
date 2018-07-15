@@ -70,7 +70,9 @@ class TokenCoder
     end
     options = normalize_options(options)
     algo = options[:algorithm]
-    segments = [Util.json_encode64("typ" => "JWT", "alg" => algo)]
+    header = {"typ" => "JWT", "alg" => algo}
+    header["kid"] = options.delete(:kid) if options[:kid]
+    segments = [Util.json_encode64(header)]
     segments << Util.json_encode64(token_body)
     if ["HS256", "HS384", "HS512"].include?(algo)
       sig = OpenSSL::HMAC.digest(init_digest(algo), options[:skey], segments.join('.'))
@@ -115,6 +117,11 @@ class TokenCoder
       raise InvalidSignature, "Signature verification failed" unless
           options[:skey] && constant_time_compare(signature, OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input))
     elsif ["RS256", "RS384", "RS512"].include?(algo)
+      if !options[:pkey] && options[:info] && signing_key_name = header["kid"]
+        token_keys = options[:info].validation_keys_hash
+        verification_key = token_keys[signing_key_name]["value"]
+        options[:pkey] = OpenSSL::PKey::RSA.new(verification_key) if verification_key
+      end
       raise InvalidSignature, "Signature verification failed" unless
           options[:pkey] && options[:pkey].verify(init_digest(algo), signature, signing_input)
     else
@@ -132,12 +139,12 @@ class TokenCoder
     if a.length != b.length
       return false
     end
-  
+
     result = 0
     a.chars.zip(b.chars).each do |x, y|
       result |= x.ord ^ y.ord
     end
-    
+
     result == 0
   end
 

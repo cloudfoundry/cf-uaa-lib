@@ -64,6 +64,40 @@ describe TokenCoder do
     result["foo"].should == "bar"
   end
 
+  it "encodes with private key/decodes using public key" do
+    pkey = OpenSSL::PKey::RSA.generate(512)
+    encoder = TokenCoder.new(audience_ids: "test_resource", pkey: pkey)
+    tkn = encoder.encode(@tkn_body, 'RS256')
+    decoder = TokenCoder.new(audience_ids: "test_resource", pkey: pkey.public_key)
+    result = decoder.decode("bEaReR #{tkn}")
+    result.should_not be_nil
+    result["foo"].should == "bar"
+  end
+
+  it "decodes a token using /token_keys" do
+    pkey = OpenSSL::PKey::RSA.generate(512)
+
+    encoder = TokenCoder.new(audience_ids: "test_resource", pkey: pkey, kid: "uaa-jwt-key-1")
+    tkn = encoder.encode(@tkn_body, 'RS256')
+
+    token_keys = {
+      "keys": [
+        {
+          "alg":"RS256", "kty":"RSA", "e":"AQAB", "use":"sig",
+          "kid":"uaa-jwt-key-1", "value":pkey.public_key
+        }
+      ]
+    }
+    stub_request(:get, "https://192.168.50.6:8443/token_keys").
+         to_return(status: 200, body: token_keys.to_json, headers: {"content-type": "application/json"})
+
+    require 'uaa/info'
+    decoder = TokenCoder.new(audience_ids: "test_resource", info: Info.new("https://192.168.50.6:8443"))
+    result = decoder.decode("bEaReR #{tkn}")
+    result.should_not be_nil
+    result["foo"].should == "bar"
+  end
+
   it "encodes/decodes with 'none' signature if explicitly accepted" do
     tkn = subject.encode(@tkn_body, 'none')
     result = TokenCoder.decode(tkn, :accept_algorithms => "none")
