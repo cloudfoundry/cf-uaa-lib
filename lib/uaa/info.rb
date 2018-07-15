@@ -102,20 +102,30 @@ class Info
   # +validation_keys_hash+ method returns a hash of all currently valid
   # verification keys, indexed by +kid+. To retrieve symmetric keys as part of
   # the result, client credentials are required.
-  # @param (see Misc.server)
+  #
+  # Result is cached. Pass +reload+ +true+ to force refresh from /token_keys
+  # endpoint.
+  #
+  # @param [String] optional client_id to retrieve symmetric keys
+  # @param [String] optional client_secret to retrieve symmetric keys
+  # @param [Boolean] optional to refresh cache of keys
   # @return [Hash]
-  def validation_keys_hash(client_id = nil, client_secret = nil)
-    hdrs = client_id && client_secret ?
-        { "authorization" => Http.basic_auth(client_id, client_secret)} : {}
-    response = json_get(target, "/token_keys", key_style, hdrs)
+  def validation_keys_hash(client_id = nil, client_secret = nil, reload = false)
+    @validation_keys_hash = nil if reload
+    @validation_keys_hash ||= begin
+      hdrs = client_id && client_secret ?
+          { "authorization" => Http.basic_auth(client_id, client_secret)} : {}
+      response = json_get(target, "/token_keys", key_style, hdrs)
 
-    keys_map = {}
+      keys_map = {}
 
-    response['keys'].each do |key|
-      keys_map[key['kid']] = key
+      response['keys'].each do |key|
+        keys_map[key['kid']] = key
+      end
+
+      keys_map
     end
-
-    keys_map
+    @validation_keys_hash
   end
 
   # Sends +token+ to the server to validate and decode. Authenticates with
