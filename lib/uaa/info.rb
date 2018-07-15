@@ -101,7 +101,7 @@ class Info
   # signature of these tokens, refer to the +kid+ header of the JWT token. The
   # +validation_keys_hash+ method returns a hash of all currently valid
   # verification keys, indexed by +kid+. To retrieve symmetric keys as part of
-  # the result, client credentials are required.
+  # the result, client credentials are required with +uaa.resource+ scope.
   #
   # Result is cached. Pass +reload+ +true+ to force refresh from /token_keys
   # endpoint.
