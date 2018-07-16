@@ -118,10 +118,10 @@ class TokenCoder
           options[:skey] && constant_time_compare(signature, OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input))
     elsif ["RS256", "RS384", "RS512"].include?(algo)
       if !options[:pkey] && options[:info] && signing_key_name = header["kid"]
-        token_keys = options[:info].validation_keys_hash
+        token_keys = options[:info].cached_validation_keys_hash
         if token_keys && !token_keys[signing_key_name]
           # New/unknown kid signing key name, refresh cache from /token_keys
-          token_keys = options[:info].validation_keys_hash(nil, nil, true)
+          token_keys = options[:info].cached_validation_keys_hash(reload: true)
         end
         if token_keys && token_keys[signing_key_name] && token_keys[signing_key_name]["value"]
           verification_key = token_keys[signing_key_name]["value"]

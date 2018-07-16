@@ -108,24 +108,35 @@ class Info
   #
   # @param [String] optional client_id to retrieve symmetric keys
   # @param [String] optional client_secret to retrieve symmetric keys
-  # @param [Boolean] optional to refresh cache of keys
   # @return [Hash]
-  def validation_keys_hash(client_id = nil, client_secret = nil, reload = false)
-    @validation_keys_hash = nil if reload
-    @validation_keys_hash ||= begin
-      hdrs = client_id && client_secret ?
-          { "authorization" => Http.basic_auth(client_id, client_secret)} : {}
-      response = json_get(target, "/token_keys", key_style, hdrs)
+  def validation_keys_hash(client_id = nil, client_secret = nil)
+    hdrs = client_id && client_secret ?
+        { "authorization" => Http.basic_auth(client_id, client_secret)} : {}
+    response = json_get(target, "/token_keys", key_style, hdrs)
 
-      keys_map = {}
+    keys_map = {}
 
-      response['keys'].each do |key|
-        keys_map[key['kid']] = key
-      end
-
-      keys_map
+    response['keys'].each do |key|
+      keys_map[key['kid']] = key
     end
-    @validation_keys_hash
+
+    keys_map
+  end
+
+  # Returns recent valid token verification keys, from +validation_keys_hash+.
+  # If the server has had its signing key changed, then call with +reload: true+.
+  # To validate the signature of these tokens, refer to the +kid+ header of the
+  # JWT token. The +cached_validation_keys_hash+ method returns a hash of all currently valid
+  # verification keys, indexed by +kid+. To retrieve symmetric keys as part of
+  # the result, client credentials are required with +uaa.resource+ scope.
+  #
+  # @param reload [Boolean] optional to refresh cache of keys
+  # @param client_id [String] optional client_id to retrieve symmetric keys, requires +uaa.resource+ scope
+  # @param client_secret [String] optional client_secret to retrieve symmetric keys
+  # @return [Hash]
+  def cached_validation_keys_hash(reload: false, client_id: nil, client_secret: nil)
+    @validation_keys_hash = nil if reload
+    @validation_keys_hash ||= validation_keys_hash
   end
 
   # Sends +token+ to the server to validate and decode. Authenticates with
