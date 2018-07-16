@@ -89,10 +89,11 @@ class TokenCoder
   # symmetrical key and a public key can be provided for signature verification.
   # The JWT header indicates what signature algorithm was used and the
   # corresponding key is used to verify the signature (if +verify+ is true).
-  # @param [String] token A JWT token as returned by {TokenCoder.encode}
+  # @param token [String] A JWT token as returned by {TokenCoder.encode} or auth header (see Scim.initialize#auth_header)
   # @param options (see #initialize)
   # @return [Hash] the token contents
-  def self.decode(token, options = {}, obsolete1 = nil, obsolete2 = nil)
+  def self.decode(accesstoken_or_authheader, options = {}, obsolete1 = nil, obsolete2 = nil)
+    access_token = TokenCoder.to_access_token(accesstoken_or_authheader)
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
       # deprecated: def self.decode(token, skey = nil, pkey = nil, verify = true)
       warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
@@ -100,7 +101,7 @@ class TokenCoder
       options[:pkey], options[:verify] = obsolete1, obsolete2
     end
     options = normalize_options(options)
-    segments = token.split('.')
+    segments = access_token.split('.')
     raise InvalidTokenFormat, "Not enough or too many segments" unless [2,3].include? segments.length
     header_segment, payload_segment, crypto_segment = segments
     signing_input = [header_segment, payload_segment].join('.')
@@ -202,14 +203,12 @@ class TokenCoder
   # audience_ids were specified in the options to this instance (see #initialize)
   # and the token does not contain one or more of those audience_ids, an
   # AuthError will be raised. AuthError is raised if the token has expired.
-  # @param [String] auth_header (see Scim.initialize#auth_header)
+  # @param [String] access_token or auth_header (see Scim.initialize#auth_header)
   # @param [Integer] reference_time
   # @return (see TokenCoder.decode)
-  def decode_at_reference_time(auth_header, reference_time)
-    unless auth_header && (tkn = auth_header.split(' ')).length == 2 && tkn[0] =~ /^bearer$/i
-      raise InvalidTokenFormat, "invalid authentication header: #{auth_header}"
-    end
-    reply = self.class.decode(tkn[1], @options)
+  def decode_at_reference_time(accesstoken_or_authheader, reference_time)
+    access_token = TokenCoder.to_access_token(accesstoken_or_authheader)
+    reply = self.class.decode(access_token, @options)
     auds = Util.arglist(reply[:aud] || reply['aud'])
     if @options[:audience_ids] && (!auds || (auds & @options[:audience_ids]).empty?)
       raise InvalidAudience, "invalid audience: #{auds}"
@@ -219,6 +218,17 @@ class TokenCoder
       raise TokenExpired, "token expired"
     end
     reply
+  end
+
+  def self.to_access_token(accesstoken_or_authheader)
+    raise InvalidTokenFormat unless accesstoken_or_authheader
+    access_token = if accesstoken_or_authheader =~ /^bearer /i
+      auth_header = accesstoken_or_authheader
+      auth_header.split(' ')[1]
+    else
+      accesstoken_or_authheader
+    end
+    access_token
   end
 end
 
