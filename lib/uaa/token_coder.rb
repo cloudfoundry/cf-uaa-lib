@@ -117,7 +117,9 @@ class TokenCoder
       raise InvalidSignature, "Signature verification failed" unless
           options[:skey] && constant_time_compare(signature, OpenSSL::HMAC.digest(init_digest(algo), options[:skey], signing_input))
     elsif ["RS256", "RS384", "RS512"].include?(algo)
-      if !options[:pkey] && options[:info] && signing_key_name = header["kid"]
+      pkey = options[:pkey]
+      if !pkey && options[:info] && header["kid"]
+        signing_key_name = header["kid"]
         token_keys = options[:info].cached_validation_keys_hash
         if token_keys && !token_keys[signing_key_name]
           # New/unknown kid signing key name, refresh cache from /token_keys
@@ -125,11 +127,11 @@ class TokenCoder
         end
         if token_keys && token_keys[signing_key_name] && token_keys[signing_key_name]["value"]
           verification_key = token_keys[signing_key_name]["value"]
-          options[:pkey] = OpenSSL::PKey::RSA.new(verification_key)
+          pkey = OpenSSL::PKey::RSA.new(verification_key)
         end
       end
       raise InvalidSignature, "Signature verification failed" unless
-          options[:pkey] && options[:pkey].verify(init_digest(algo), signature, signing_input)
+        pkey && pkey.verify(init_digest(algo), signature, signing_input)
     else
       raise SignatureNotSupported, "Algorithm not supported"
     end
