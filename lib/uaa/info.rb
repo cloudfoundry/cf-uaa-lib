@@ -112,7 +112,7 @@ class Info
   def validation_keys_hash(client_id = nil, client_secret = nil)
     hdrs = client_id && client_secret ?
         { "authorization" => Http.basic_auth(client_id, client_secret)} : {}
-    response = json_get(target, "/token_keys", key_style, hdrs)
+    response = json_get(target, "/token_keys", nil, hdrs)
 
     keys_map = {}
 
