@@ -136,7 +136,7 @@ class Info
   # @return [Hash]
   def cached_validation_keys_hash(reload: false, client_id: nil, client_secret: nil)
     @validation_keys_hash = nil if reload
-    @validation_keys_hash ||= validation_keys_hash
+    @validation_keys_hash ||= validation_keys_hash(client_id, client_secret)
   end
 
   # Sends +token+ to the server to validate and decode. Authenticates with
