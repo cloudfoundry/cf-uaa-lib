@@ -56,19 +56,23 @@ module CF::UAA
     end
 
     it 'times out the connection at the configured time for the scim' do
+      stub_request(:get, 'http://10.255.255.1/Users/admin').to_timeout
+
       expect {
         Timeout.timeout(default_http_client_timeout - 1) do
           scim.get(:user, "admin")
         end
-      }.to raise_error HTTPException
+      }.to raise_error HTTPClient::TimeoutError
     end
 
     it 'times out the connection at the configured time for the token issuer' do
+      stub_request(:post, 'http://10.255.255.1/oauth/token').to_timeout
+
       expect {
         Timeout.timeout(default_http_client_timeout - 1) do
           token_issuer.client_credentials_grant
         end
-      }.to raise_error HTTPException
+      }.to raise_error HTTPClient::TimeoutError
     end
   end
 

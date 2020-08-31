@@ -13,6 +13,7 @@
 
 require 'spec_helper'
 require 'uaa/token_coder'
+require 'uaa/info'
 
 module CF::UAA
 
@@ -60,6 +61,71 @@ describe TokenCoder do
     coder = TokenCoder.new(:audience_ids => "test_resource", :pkey => pem)
     tkn = coder.encode(@tkn_body, 'RS256')
     result = coder.decode("bEaReR #{tkn}")
+    result.should_not be_nil
+    result["foo"].should == "bar"
+  end
+
+  it "encodes with private key/decodes using public key" do
+    pkey = OpenSSL::PKey::RSA.generate(512)
+    encoder = TokenCoder.new(audience_ids: "test_resource", pkey: pkey)
+    tkn = encoder.encode(@tkn_body, 'RS256')
+    decoder = TokenCoder.new(audience_ids: "test_resource", pkey: pkey.public_key)
+    result = decoder.decode("bEaReR #{tkn}")
+    result.should_not be_nil
+    result["foo"].should == "bar"
+  end
+
+  it "decodes a token using /token_keys" do
+    pkey = OpenSSL::PKey::RSA.generate(512)
+
+    encoder = TokenCoder.new(audience_ids: "test_resource", pkey: pkey, kid: "uaa-jwt-key-1")
+    tkn = encoder.encode(@tkn_body, 'RS256')
+
+    token_keys = {
+      "keys": [
+        {
+          "alg":"RS256", "kty":"RSA", "e":"AQAB", "use":"sig",
+          "kid":"uaa-jwt-key-1", "value":pkey.public_key
+        }
+      ]
+    }
+    stub_request(:get, "https://192.168.50.6:8443/token_keys").
+         to_return(status: 200, body: token_keys.to_json, headers: {"content-type": "application/json"})
+
+    decoder = TokenCoder.new(audience_ids: "test_resource", info: Info.new("https://192.168.50.6:8443"))
+    result = decoder.decode("bearer #{tkn}")
+    result.should_not be_nil
+    result["foo"].should == "bar"
+  end
+
+  it "decodes a token using /token_keys; re-fetches /token_keys if new header kid discovered" do
+    pkey = OpenSSL::PKey::RSA.generate(512)
+
+    encoder = TokenCoder.new(audience_ids: "test_resource", pkey: pkey, kid: "uaa-jwt-key-2")
+    tkn = encoder.encode(@tkn_body, 'RS256')
+
+    token_keys_initially = {
+      "keys": [
+        {
+          "alg":"RS256", "kty":"RSA", "e":"AQAB", "use":"sig",
+          "kid":"uaa-jwt-key-1", "value":"ignore-me-now"
+        }
+      ]
+    }
+    token_keys_refresh = {
+      "keys": [
+        {
+          "alg":"RS256", "kty":"RSA", "e":"AQAB", "use":"sig",
+          "kid":"uaa-jwt-key-2", "value":pkey.public_key
+        }
+      ]
+    }
+    stub_request(:get, "https://192.168.50.6:8443/token_keys").
+         to_return(status: 200, body: token_keys_initially.to_json, headers: {"content-type": "application/json"}).
+         then.to_return(status: 200, body: token_keys_refresh.to_json, headers: {"content-type": "application/json"})
+
+    decoder = TokenCoder.new(audience_ids: "test_resource", info: Info.new("https://192.168.50.6:8443"))
+    result = decoder.decode("bearer #{tkn}")
     result.should_not be_nil
     result["foo"].should == "bar"
   end

@@ -23,3 +23,4 @@ if ENV['COVERAGE']
 end
 
 require 'rspec'
+require 'webmock/rspec'
