@@ -183,6 +183,12 @@ describe TokenCoder do
     info["id"].should_not be_nil
     info["email"].should == "olds@vmware.com"
   end
+
+  it "decodes only the expiry_at time" do
+    exp = Time.now.to_i + 60
+    tkn = subject.encode({'foo' => "bar", 'exp' => exp })
+    TokenCoder.decode_token_expiry("bEaReR #{tkn}").should == exp
+  end
 end
 
 end
