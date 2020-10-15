@@ -54,14 +54,6 @@ class Info
     json_get(target, "/userinfo?schema=openid", key_style, "authorization" => auth_header)
   end
 
-  # Gets various monitoring and status variables from the server.
-  # Authenticates using +name+ and +pwd+ for basic authentication.
-  # @param (see Misc.server)
-  # @return [Hash]
-  def varz(name, pwd)
-    json_get(target, "/varz", key_style, "authorization" => Http.basic_auth(name, pwd))
-  end
-
   # Gets basic information about the target server, including version number,
   # commit ID, and links to API endpoints.
   # @return [Hash]
