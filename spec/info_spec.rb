@@ -34,7 +34,7 @@ module CF::UAA
     end
 
     describe 'initialize' do
-      let(:options) { {:skip_ssl_validation => true} }
+      let(:options) { {skip_ssl_validation: true} }
 
       it 'sets proxy information' do
         uaa_info.skip_ssl_validation == true
@@ -52,7 +52,7 @@ module CF::UAA
       end
 
       context 'with symbolize_keys keys true' do
-        let(:options) { {:symbolize_keys => true} }
+        let(:options) { {symbolize_keys: true} }
 
         it 'gets server info' do
           result = uaa_info.server
@@ -84,7 +84,7 @@ module CF::UAA
       end
 
       context 'with symbolize_keys keys true' do
-        let(:options) { {:symbolize_keys => true} }
+        let(:options) { {symbolize_keys: true} }
 
         it 'gets UAA target' do
           result = uaa_info.discover_uaa

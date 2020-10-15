@@ -18,8 +18,8 @@ module CF::UAA
 
 describe TokenCoder do
 
-  subject { TokenCoder.new(:audience_ids => "test_resource",
-      :skey => "test_secret", :pkey => OpenSSL::PKey::RSA.generate(512) ) }
+  subject { TokenCoder.new(audience_ids: "test_resource",
+      skey: "test_secret", pkey: OpenSSL::PKey::RSA.generate(512) ) }
 
   before :each do
     @tkn_body = {'foo' => "bar"}
@@ -57,7 +57,7 @@ describe TokenCoder do
       2yrlT5h164jGCxqe7++1kIl4ollFCgz6QJ8lcmb/2Q==
       -----END RSA PRIVATE KEY-----
     DATA
-    coder = TokenCoder.new(:audience_ids => "test_resource", :pkey => pem)
+    coder = TokenCoder.new(audience_ids: "test_resource", pkey: pem)
     tkn = coder.encode(@tkn_body, 'RS256')
     result = coder.decode("bEaReR #{tkn}")
     result.should_not be_nil
@@ -66,7 +66,7 @@ describe TokenCoder do
 
   it "encodes/decodes with 'none' signature if explicitly accepted" do
     tkn = subject.encode(@tkn_body, 'none')
-    result = TokenCoder.decode(tkn, :accept_algorithms => "none")
+    result = TokenCoder.decode(tkn, accept_algorithms: "none")
     result.should_not be_nil
     result["foo"].should == "bar"
   end
@@ -86,7 +86,7 @@ describe TokenCoder do
   end
 
   it "raises an error if the token is signed by an unknown signing key" do
-    other = TokenCoder.new(:audience_ids => "test_resource", :skey => "other_secret")
+    other = TokenCoder.new(audience_ids: "test_resource", skey: "other_secret")
     tkn = other.encode(@tkn_body)
     expect { subject.decode("bEaReR #{tkn}") }.to raise_exception(InvalidSignature)
   end
@@ -103,8 +103,8 @@ describe TokenCoder do
       2yrlT5h164jGCxqe7++1kIl4ollFCgz6QJ8lcmb/2Q==
       -----END RSA PRIVATE KEY-----
     DATA
-    coder = TokenCoder.new(:audience_ids => "test_resource", :pkey => pem)
-    coder2 = TokenCoder.new(:audience_ids => "test_resource", :skey => 'randomness')
+    coder = TokenCoder.new(audience_ids: "test_resource", pkey: pem)
+    coder2 = TokenCoder.new(audience_ids: "test_resource", skey: 'randomness')
 
     tkn = coder.encode(@tkn_body, 'RS256')
 
@@ -123,21 +123,21 @@ describe TokenCoder do
       2yrlT5h164jGCxqe7++1kIl4ollFCgz6QJ8lcmb/2Q==
       -----END RSA PRIVATE KEY-----
     DATA
-    coder = TokenCoder.new(:audience_ids => "test_resource", :pkey => pem)
-    coder2 = TokenCoder.new(:audience_ids => "test_resource", :skey => 'randomness')
+    coder = TokenCoder.new(audience_ids: "test_resource", pkey: pem)
+    coder2 = TokenCoder.new(audience_ids: "test_resource", skey: 'randomness')
     tkn = coder2.encode(@tkn_body)
 
     expect { coder.decode("bEaReR #{tkn}") }.to raise_exception(InvalidSignature)
   end
 
   it "raises an error if the token is an unknown signing algorithm" do
-    segments = [Util.json_encode64(:typ => "JWT", :alg =>"BADALGO")]
+    segments = [Util.json_encode64(typ: "JWT", alg:"BADALGO")]
     segments << Util.json_encode64(@tkn_body)
     segments << Util.encode64("BADSIG")
     tkn = segments.join('.')
-    tc = TokenCoder.new(:audience_ids => "test_resource",
-        :skey => "test_secret", :pkey => OpenSSL::PKey::RSA.generate(512),
-        :accept_algorithms => "BADALGO")
+    tc = TokenCoder.new(audience_ids: "test_resource",
+        skey: "test_secret", pkey: OpenSSL::PKey::RSA.generate(512),
+        accept_algorithms: "BADALGO")
     expect { tc.decode("bEaReR #{tkn}") }.to raise_exception(SignatureNotSupported)
   end
 
@@ -179,7 +179,7 @@ describe TokenCoder do
 
   it "decodes a token without validation" do
     token = "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImY1MTgwMjExLWVkYjItNGQ4OS1hNmQwLThmNGVjMTE0NTE4YSIsInJlc291cmNlX2lkcyI6WyJjbG91ZF9jb250cm9sbGVyIiwicGFzc3dvcmQiXSwiZXhwaXJlc19hdCI6MTMzNjU1MTc2Niwic2NvcGUiOlsicmVhZCJdLCJlbWFpbCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9hdXRob3JpdGllcyI6WyJST0xFX1VOVFJVU1RFRCJdLCJleHBpcmVzX2luIjo0MzIwMCwidXNlcl9hdXRob3JpdGllcyI6WyJST0xFX1VTRVIiXSwidXNlcl9pZCI6Im9sZHNAdm13YXJlLmNvbSIsImNsaWVudF9pZCI6InZtYyIsInRva2VuX2lkIjoiZWRlYmYzMTctNWU2Yi00YmYwLWFmM2ItMTA0OWRjNmFlYjc1In0.XoirrePfEujnZ9Vm7SRRnj3vZEfRp2tkjkS_OCVz5Bs"
-    info = TokenCoder.decode(token, :verify => false)
+    info = TokenCoder.decode(token, verify: false)
     info["id"].should_not be_nil
     info["email"].should == "olds@vmware.com"
   end

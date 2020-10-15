@@ -41,14 +41,14 @@ module CF::UAA
     target = ENV['UAA_CLIENT_TARGET']
 
     admin_token_issuer = TokenIssuer.new(target, admin_client, admin_secret, options)
-    Scim.new(target, admin_token_issuer.client_credentials_grant.auth_header, options.merge(:symbolize_keys => true))
+    Scim.new(target, admin_token_issuer.client_credentials_grant.auth_header, options.merge(symbolize_keys: true))
   end
 
   describe 'when UAA does not respond' do
     let(:http_timeout) { 0.01 }
     let(:default_http_client_timeout) { 60 }
-    let(:scim) { Scim.new(@target, "", {:http_timeout => http_timeout}) }
-    let(:token_issuer) { TokenIssuer.new(@target, "", "", {:http_timeout => http_timeout}) }
+    let(:scim) { Scim.new(@target, "", {http_timeout: http_timeout}) }
+    let(:token_issuer) { TokenIssuer.new(@target, "", "", {http_timeout: http_timeout}) }
     let(:blackhole_ip) { '10.255.255.1'}
 
     before do
@@ -77,20 +77,20 @@ module CF::UAA
 
       let(:options)  { @options }
       let(:token_issuer) { TokenIssuer.new(@target, @test_client, @test_secret, options) }
-      let(:scim) { Scim.new(@target, token_issuer.client_credentials_grant.auth_header, options.merge(:symbolize_keys => true)) }
+      let(:scim) { Scim.new(@target, token_issuer.client_credentials_grant.auth_header, options.merge(symbolize_keys: true)) }
 
       before :all do
         @options = {}
         if ENV['SKIP_SSL_VALIDATION']
-          @options = {:skip_ssl_validation => true}
+          @options = {skip_ssl_validation: true}
         end
         @target = ENV['UAA_CLIENT_TARGET']
         @test_client = "test_client_#{Time.now.to_i}"
         @test_secret = '+=tEsTsEcRet~!@'
         gids = ['clients.read', 'scim.read', 'scim.write', 'uaa.resource', 'password.write']
-        test_client = CF::UAA::admin_scim(@options).add(:client, :client_id => @test_client, :client_secret => @test_secret,
-                                     :authorities => gids, :authorized_grant_types => ['client_credentials', 'password'],
-                                     :scope => ['openid', 'password.write'])
+        test_client = CF::UAA::admin_scim(@options).add(:client, client_id: @test_client, client_secret: @test_secret,
+                                     authorities: gids, authorized_grant_types: ['client_credentials', 'password'],
+                                     scope: ['openid', 'password.write'])
         expect(test_client[:client_id]).to eq(@test_client)
       end
 
@@ -102,7 +102,7 @@ module CF::UAA
 
       if ENV['SKIP_SSL_VALIDATION']
         context 'when ssl certificate is self-signed' do
-          let(:options)  { {:skip_ssl_validation => false} }
+          let(:options)  { {skip_ssl_validation: false} }
 
           it 'fails if skip_ssl_validation is false' do
             expect{ scim }.to raise_exception(CF::UAA::SSLException)
@@ -113,7 +113,7 @@ module CF::UAA
       if ENV['SSL_CA_FILE']
         context 'when you do not skip SSL validation' do
           context 'when you provide cert' do
-            let(:options)  { {:ssl_ca_file => ENV['SSL_CA_FILE']} }
+            let(:options)  { {ssl_ca_file: ENV['SSL_CA_FILE']} }
 
             it 'works' do
               expect(token_issuer.prompts).to_not be_nil
@@ -139,7 +139,7 @@ module CF::UAA
               cert_store
             end
 
-            let(:options)  { {:ssl_cert_store => cert_store} }
+            let(:options)  { {ssl_cert_store: cert_store} }
             it 'works' do
               expect(token_issuer.prompts).to_not be_nil
             end
@@ -166,7 +166,7 @@ module CF::UAA
       it 'gets a token with client credentials' do
         tkn = token_issuer.client_credentials_grant
         expect(tkn.auth_header).to match(/^bearer\s/i)
-        info = TokenCoder.decode(tkn.info['access_token'], :verify => false, :symbolize_keys => true)
+        info = TokenCoder.decode(tkn.info['access_token'], verify: false, symbolize_keys: true)
         expect(info[:exp]).to be
         expect(info[:jti]).to be
       end
@@ -179,9 +179,9 @@ module CF::UAA
         before :each do
           @username = "sam_#{Time.now.to_i}"
           @user_pwd = "sam's P@55w0rd~!`@\#\$%^&*()_/{}[]\\|:\";',.<>?/"
-          usr = scim.add(:user, :username => @username, :password => @user_pwd,
-                         :emails => [{:value => 'sam@example.com'}],
-                         :name => {:givenname => 'none', :familyname => 'none'})
+          usr = scim.add(:user, username: @username, password: @user_pwd,
+                         emails: [{value: 'sam@example.com'}],
+                         name: {givenname: 'none', familyname: 'none'})
           @user_id = usr[:id]
         end
 
@@ -222,8 +222,8 @@ module CF::UAA
 
           it 'should get a uri to be sent to the user agent to initiate autologin' do
             redir_uri = 'http://call.back/uri_path'
-            uri_parts = token_issuer.autologin_uri(redir_uri, :username => @username,
-                                                   :password =>@user_pwd ).split('?')
+            uri_parts = token_issuer.autologin_uri(redir_uri, username: @username,
+                                                   password: @user_pwd ).split('?')
             expect(uri_parts[0]).to eq("#{ENV['UAA_CLIENT_TARGET']}/oauth/authorize")
             params = Util.decode_form(uri_parts[1], :sym)
             expect(params[:response_type]).to eq('code')

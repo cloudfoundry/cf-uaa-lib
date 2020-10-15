@@ -129,7 +129,7 @@ class Info
   # @return [Hash] contents of the token
   def decode_token(client_id, client_secret, token, token_type = "bearer", audience_ids = nil)
     reply = json_parse_reply(key_style, *request(target, :post, '/check_token',
-                                                 Util.encode_form(:token => token),
+                                                 Util.encode_form(token: token),
                                                  "authorization" => Http.basic_auth(client_id, client_secret),
                                                  "content-type" => Http::FORM_UTF8,"accept" => Http::JSON_UTF8))
 
@@ -146,7 +146,7 @@ class Info
   # @return [Hash]
   def password_strength(password)
     json_parse_reply(key_style, *request(target, :post, '/password/score',
-        Util.encode_form(:password => password), "content-type" => Http::FORM_UTF8,
+        Util.encode_form(password: password), "content-type" => Http::FORM_UTF8,
         "accept" => Http::JSON_UTF8))
   end
 

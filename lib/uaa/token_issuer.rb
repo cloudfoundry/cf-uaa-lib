@@ -81,8 +81,8 @@ class TokenIssuer
   end
 
   def authorize_path_args(response_type, redirect_uri, scope, state = random_state, args = {})
-    params = args.merge(:client_id => @client_id, :response_type => response_type,
-        :redirect_uri => redirect_uri, :state => state)
+    params = args.merge(client_id: @client_id, response_type: response_type,
+        redirect_uri: redirect_uri, state: state)
     params[:scope] = scope = Util.strlist(scope) if scope = Util.arglist(scope)
     params[:nonce] = state
     "/oauth/authorize?#{Util.encode_form(params)}"
@@ -137,7 +137,7 @@ class TokenIssuer
 
     # the accept header is only here so the uaa will issue error replies in json to aid debugging
     headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8 }
-    body = Util.encode_form(credentials.merge(:source => 'credentials'))
+    body = Util.encode_form(credentials.merge(source: 'credentials'))
     status, body, headers = request(@target, :post, uri, body, headers)
     raise BadResponse, "status #{status}" unless status == 302
     req_uri, reply_uri = URI.parse(redir_uri), URI.parse(headers['location'])
@@ -194,7 +194,7 @@ class TokenIssuer
     reply = json_parse_reply(nil, *request(@target, :post, "/autologin", body, headers))
     raise BadResponse, "no autologin code in reply" unless reply['code']
     @target + authorize_path_args('code', redirect_uri, scope,
-        random_state, :code => reply['code'])
+        random_state, code: reply['code'])
   end
 
   # Constructs a uri that the client is to return to the browser to direct
@@ -228,8 +228,8 @@ class TokenIssuer
     rescue URI::InvalidURIError, ArgumentError, BadResponse
       raise BadResponse, "received invalid response from target #{@target}"
     end
-    request_token(:grant_type => 'authorization_code', :code => authcode,
-        :redirect_uri => ac_params['redirect_uri'])
+    request_token(grant_type: 'authorization_code', code: authcode,
+        redirect_uri: ac_params['redirect_uri'])
   end
 
   # Uses the instance client credentials in addition to the +username+
@@ -237,15 +237,15 @@ class TokenIssuer
   # See {http://tools.ietf.org/html/rfc6749#section-4.3}.
   # @return [TokenInfo]
   def owner_password_grant(username, password, scope = nil)
-    request_token(:grant_type => 'password', :username => username,
-        :password => password, :scope => scope)
+    request_token(grant_type: 'password', username: username,
+        password: password, scope: scope)
   end
 
   # Uses a one-time passcode obtained from the UAA to get a
   # token.
   # @return [TokenInfo]
   def passcode_grant(passcode, scope = nil)
-    request_token(:grant_type => 'password', :passcode => passcode, :scope => scope)
+    request_token(grant_type: 'password', passcode: passcode, scope: scope)
   end
 
   # Gets an access token with the user credentials used for authentication
@@ -264,14 +264,14 @@ class TokenIssuer
   # credentials grant. See http://tools.ietf.org/html/rfc6749#section-4.4
   # @return [TokenInfo]
   def client_credentials_grant(scope = nil)
-    request_token(:grant_type => 'client_credentials', :scope => scope)
+    request_token(grant_type: 'client_credentials', scope: scope)
   end
 
   # Uses the instance client credentials and the given +refresh_token+ to get
   # a new access token. See http://tools.ietf.org/html/rfc6749#section-6
   # @return [TokenInfo] which may include a new refresh token as well as an access token.
   def refresh_token_grant(refresh_token, scope = nil)
-    request_token(:grant_type => 'refresh_token', :refresh_token => refresh_token, :scope => scope)
+    request_token(grant_type: 'refresh_token', refresh_token: refresh_token, scope: scope)
   end
 
 end

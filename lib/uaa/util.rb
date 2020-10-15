@@ -145,7 +145,7 @@ class Util
 
   # Converts +obj+ to nicely formatted JSON
   # @return [String] obj in formatted json
-  def self.json_pretty(obj) MultiJson.dump(obj, :pretty => true) end
+  def self.json_pretty(obj) MultiJson.dump(obj, pretty: true) end
 
   # Converts +obj+ to a URL-safe base 64 encoded string
   # @return [String]
