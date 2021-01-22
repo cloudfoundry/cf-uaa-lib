@@ -24,7 +24,13 @@ class SignatureNotAccepted < DecodeError; end
 
 class InvalidSignature < DecodeError; end
 class InvalidTokenFormat < DecodeError; end
-class TokenExpired < AuthError; end
+class TokenExpired < AuthError
+  attr_accessor :decoded_token
+  def initialize(message, decoded_token=nil)
+    super message
+    @decoded_token = decoded_token
+  end
+end
 class InvalidAudience < AuthError; end
 
 # This class is for OAuth Resource Servers.
@@ -205,7 +211,20 @@ class TokenCoder
   # @param [String] auth_header (see Scim.initialize#auth_header)
   # @param [Integer] reference_time
   # @return (see TokenCoder.decode)
-  def decode_at_reference_time(auth_header, reference_time)
+  def decode_at_reference_time_exp_warn_only(auth_header, reference_time)
+    decode_at_reference_time(auth_header, reference_time, true)
+  end
+
+  # Returns hash of values decoded from the token contents,
+  # taking reference_time as the comparison time for expiration. If the
+  # audience_ids were specified in the options to this instance (see #initialize)
+  # and the token does not contain one or more of those audience_ids, an
+  # AuthError will be raised. AuthError is raised if the token has expired.
+  # @param [String] auth_header (see Scim.initialize#auth_header)
+  # @param [Integer] reference_time
+  # @param [Boolean] exp_warn_only If set to true, the decoded token will be returned with the TokenExpired error
+  # @return (see TokenCoder.decode)
+  def decode_at_reference_time(auth_header, reference_time, exp_warn_only=false)
     unless auth_header && (tkn = auth_header.split(' ')).length == 2 && tkn[0] =~ /^bearer$/i
       raise InvalidTokenFormat, "invalid authentication header: #{auth_header}"
     end
@@ -216,6 +235,9 @@ class TokenCoder
     end
     exp = reply[:exp] || reply['exp']
     unless exp.is_a?(Integer) && exp > reference_time
+      if exp_warn_only == true
+        raise TokenExpired.new("token expired", reply)
+      end
       raise TokenExpired, "token expired"
     end
     reply
