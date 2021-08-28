@@ -43,5 +43,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'simplecov-rcov', '~> 0.2.3'
   s.add_development_dependency 'ci_reporter', '~> 1.9', '>= 1.9.2'
   s.add_development_dependency 'json_pure', '~> 1.8', '>= 1.8.1'
+  s.add_development_dependency 'webmock', '~> 3.4'
 
 end
