@@ -37,7 +37,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'httpclient', '~> 2.8', '>= 2.8.2.4'
 
   s.add_development_dependency 'bundler', '~> 2.2'
-  s.add_development_dependency 'rake', '~> 10.3', '>= 10.3.2'
+  s.add_development_dependency 'rake', '>= 10.3.2', '~> 13.0'
   s.add_development_dependency 'rspec', '>= 2.14.1', '~> 3.9'
   s.add_development_dependency 'simplecov', '~> 0.21.2'
   s.add_development_dependency 'simplecov-rcov', '~> 0.2.3'
