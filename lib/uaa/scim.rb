@@ -12,7 +12,7 @@
 #++
 
 require 'uaa/http'
-require 'uri'
+require 'addressable/uri'
 
 module CF::UAA
 
@@ -177,7 +177,7 @@ class Scim
   # @param [String] id the id attribute of the SCIM object
   # @return [nil]
   def delete(type, id)
-    http_delete @target, "#{type_info(type, :path)}/#{URI.encode(id)}", @auth_header, @zone
+    http_delete @target, "#{type_info(type, :path)}/#{Addressable::URI.encode(id)}", @auth_header, @zone
   end
 
   # Replaces the contents of a SCIM object.
@@ -192,7 +192,7 @@ class Scim
       hdrs.merge!('if-match' => etag)
     end
     reply = json_parse_reply(@key_style,
-        *json_put(@target, "#{path}/#{URI.encode(id)}", info, hdrs))
+        *json_put(@target, "#{path}/#{Addressable::URI.encode(id)}", info, hdrs))
 
     # hide client endpoints that are not quite scim compatible
     type == :client && !reply ? get(type, info['client_id']): reply
@@ -210,7 +210,7 @@ class Scim
       hdrs.merge!('if-match' => etag)
     end
     reply = json_parse_reply(@key_style,
-        *json_patch(@target, "#{path}/#{URI.encode(id)}", info, hdrs))
+        *json_patch(@target, "#{path}/#{Addressable::URI.encode(id)}", info, hdrs))
 
     # hide client endpoints that are not quite scim compatible
     type == :client && !reply ? get(type, info['client_id']): reply
@@ -258,7 +258,7 @@ class Scim
   # @param (see #delete)
   # @return (see #add)
   def get(type, id)
-    info = json_get(@target, "#{type_info(type, :path)}/#{URI.encode(id)}",
+    info = json_get(@target, "#{type_info(type, :path)}/#{Addressable::URI.encode(id)}",
         @key_style, headers)
 
     fake_client_id(info) if type == :client # hide client reply, not quite scim
@@ -270,7 +270,7 @@ class Scim
   # @return (client meta)
   def get_client_meta(client_id)
     path = type_info(:client, :path)
-    json_get(@target, "#{path}/#{URI.encode(client_id)}/meta", @key_style, headers)
+    json_get(@target, "#{path}/#{Addressable::URI.encode(client_id)}/meta", @key_style, headers)
   end
 
   # Collects all pages of entries from a query
@@ -350,7 +350,7 @@ class Scim
     req = {"password" => new_password}
     req["oldPassword"] = old_password if old_password
     json_parse_reply(@key_style, *json_put(@target,
-        "#{type_info(:user, :path)}/#{URI.encode(user_id)}/password", req, headers))
+        "#{type_info(:user, :path)}/#{Addressable::URI.encode(user_id)}/password", req, headers))
   end
 
   # Change client secret.
@@ -366,13 +366,13 @@ class Scim
     req = {"secret" => new_secret }
     req["oldSecret"] = old_secret if old_secret
     json_parse_reply(@key_style, *json_put(@target,
-        "#{type_info(:client, :path)}/#{URI.encode(client_id)}/secret", req, headers))
+        "#{type_info(:client, :path)}/#{Addressable::URI.encode(client_id)}/secret", req, headers))
   end
 
   def unlock_user(user_id)
     req = {"locked" => false}
     json_parse_reply(@key_style, *json_patch(@target,
-        "#{type_info(:user, :path)}/#{URI.encode(user_id)}/status", req, headers))
+        "#{type_info(:user, :path)}/#{Addressable::URI.encode(user_id)}/status", req, headers))
   end
 
   def map_group(group, is_id, external_group, origin = "ldap")
@@ -385,7 +385,7 @@ class Scim
   end
 
   def unmap_group(group_id, external_group, origin = "ldap")
-    http_delete(@target, "#{type_info(:group_mapping, :path)}/groupId/#{group_id}/externalGroup/#{URI.encode(external_group)}/origin/#{origin}",
+    http_delete(@target, "#{type_info(:group_mapping, :path)}/groupId/#{group_id}/externalGroup/#{Addressable::URI.encode(external_group)}/origin/#{origin}",
                           @auth_header, @zone)
   end
 

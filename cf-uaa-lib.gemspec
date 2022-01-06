@@ -35,6 +35,7 @@ Gem::Specification.new do |s|
   # dependencies
   s.add_dependency 'multi_json', '>= 1.12.1', '< 1.16'
   s.add_dependency 'httpclient', '~> 2.8', '>= 2.8.2.4'
+  s.add_dependency 'addressable', '~> 2.8', '>= 2.8.0'
 
   s.add_development_dependency 'bundler', '~> 2.2'
   s.add_development_dependency 'rake', '>= 10.3.2', '~> 13.0'
