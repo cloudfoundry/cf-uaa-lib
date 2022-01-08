@@ -182,8 +182,8 @@ describe TokenIssuer do
         end
 
         expect(subject).to receive(:authorize_path_args).with('token', 'https://uaa.cloudfoundry.com/redirect/test_client', 'logs.read', anything)
-        subject.stub(:random_state).and_return('1234')
-        subject.stub(:authorize_path_args).and_return('/oauth/authorize?state=1234&scope=logs.read')
+        allow(subject).to receive(:random_state).and_return('1234')
+        allow(subject).to receive(:authorize_path_args).and_return('/oauth/authorize?state=1234&scope=logs.read')
 
         token = subject.implicit_grant_with_creds({:username => 'joe+admin', :password => "?joe's%password$@ "}, 'logs.read')
         token.should be_an_instance_of TokenInfo
@@ -202,7 +202,7 @@ describe TokenIssuer do
         end
 
         expect(subject).to receive(:authorize_path_args).with('token id_token', 'https://uaa.cloudfoundry.com/redirect/test_client', 'openid logs.read', anything)
-        subject.stub(:random_state).and_return('1234')
+        allow(subject).to receive(:random_state).and_return('1234')
         subject.implicit_grant_with_creds({:username => 'joe+admin', :password => "?joe's%password$@ "}, 'openid logs.read')
       end
     end
