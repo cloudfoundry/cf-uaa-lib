@@ -24,8 +24,6 @@ Gem::Specification.new do |s|
   s.summary     = %q{Client library for CloudFoundry UAA}
   s.description = %q{Client library for interacting with the CloudFoundry User Account and Authorization (UAA) server.  The UAA is an OAuth2 Authorization Server so it can be used by webapps and command line apps to obtain access tokens to act on behalf of users.  The tokens can then be used to access protected resources in a Resource Server.  This library is for use by UAA client applications or resource servers.}
 
-  s.rubyforge_project = "cf-uaa-lib"
-
   s.license       = "Apache-2.0"
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
