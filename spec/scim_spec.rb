@@ -39,7 +39,7 @@ describe Scim do
   end
 
   describe 'initialize' do
-    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com', :skip_ssl_validation => true} }
+    let(:options) { {http_proxy: 'http-proxy.com', https_proxy: 'https-proxy.com', skip_ssl_validation: true} }
 
     it 'sets skip_ssl_validation' do
       subject.skip_ssl_validation == true
@@ -53,8 +53,8 @@ describe Scim do
       check_headers(headers, :json, :json, nil)
       [200, '{"ID":"id12345"}', {'content-type' => 'application/json'}]
     end
-    result = subject.add(:user, :hair => 'brown', :shoe_size => 'large',
-        :eye_color => ['blue', 'green'], :name => 'fred')
+    result = subject.add(:user, hair: 'brown', shoe_size: 'large',
+        eye_color: ['blue', 'green'], name: 'fred')
     result['id'].should == 'id12345'
   end
 
@@ -71,8 +71,8 @@ describe Scim do
   end
 
   it 'replaces an object' do
-    obj = {:hair => 'black', :shoe_size => 'medium', :eye_color => ['hazel', 'brown'],
-          :name => 'fredrick', :meta => {:version => 'v567'}, :id => 'id12345'}
+    obj = {hair: 'black', shoe_size: 'medium', eye_color: ['hazel', 'brown'],
+          name: 'fredrick', meta: {version: 'v567'}, id: 'id12345'}
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :put
@@ -85,8 +85,8 @@ describe Scim do
   end
 
   it 'modifies an object' do
-    obj = {:hair => 'black', :shoe_size => 'medium', :eye_color => ['hazel', 'brown'],
-          :name => 'fredrick', :meta => {:version => 'v567'}, :id => 'id12345'}
+    obj = {hair: 'black', shoe_size: 'medium', eye_color: ['hazel', 'brown'],
+          name: 'fredrick', meta: {version: 'v567'}, id: 'id12345'}
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345"
       method.should == :patch
@@ -122,7 +122,7 @@ describe Scim do
         '{"TotalResults":2,"ItemsPerPage":1,"StartIndex":2,"RESOURCES":[{"id":"id67890"}]}'
       [200, reply, {'content-type' => 'application/json'}]
     end
-    result = subject.all_pages(:user, :attributes => 'id', :includeInactive => true)
+    result = subject.all_pages(:user, attributes: 'id', includeInactive: true)
     [result[0]['id'], result[1]['id']].to_set.should == ['id12345', 'id67890'].to_set
   end
 
@@ -221,7 +221,7 @@ describe Scim do
   end
 
   describe 'users in a zone' do
-    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com', :skip_ssl_validation => true, :zone => 'derpzone'} }
+    let(:options) { {http_proxy: 'http-proxy.com', https_proxy: 'https-proxy.com', skip_ssl_validation: true, zone: 'derpzone'} }
 
     it 'sends zone header' do
         subject.set_request_handler do |url, method, body, headers|
@@ -230,8 +230,8 @@ describe Scim do
           check_headers(headers, :json, :json, 'derpzone')
           [200, '{"ID":"id12345"}', {'content-type' => 'application/json'}]
         end
-        result = subject.add(:user, :hair => 'brown', :shoe_size => 'large',
-                             :eye_color => ['blue', 'green'], :name => 'fred')
+        result = subject.add(:user, hair: 'brown', shoe_size: 'large',
+                             eye_color: ['blue', 'green'], name: 'fred')
         result['id'].should == 'id12345'
       end
   end
