@@ -65,7 +65,7 @@ class TokenCoder
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
       # deprecated: def self.encode(token_body, skey, pkey = nil, algo = 'HS256')
       warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
-      options = {:skey => options }
+      options = {skey: options }
       options[:pkey], options[:algorithm] = obsolete1, obsolete2
     end
     options = normalize_options(options)
@@ -96,7 +96,7 @@ class TokenCoder
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
       # deprecated: def self.decode(token, skey = nil, pkey = nil, verify = true)
       warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
-      options = {:skey => options }
+      options = {skey: options }
       options[:pkey], options[:verify] = obsolete1, obsolete2
     end
     options = normalize_options(options)
@@ -170,7 +170,7 @@ class TokenCoder
     unless options.is_a?(Hash) && obsolete1.nil? && obsolete2.nil?
       # deprecated: def initialize(audience_ids, skey, pkey = nil)
       warn "#{self.class}##{__method__} is deprecated with these parameters. Please use options hash."
-      options = {:audience_ids => options }
+      options = {audience_ids: options }
       options[:skey], options[:pkey] = obsolete1, obsolete2
     end
     @options = self.class.normalize_options(options)
@@ -184,7 +184,7 @@ class TokenCoder
   def encode(token_body = {}, algorithm = nil)
     token_body[:aud] = @options[:audience_ids] if @options[:audience_ids] && !token_body[:aud] && !token_body['aud']
     token_body[:exp] = Time.now.to_i + 7 * 24 * 60 * 60 unless token_body[:exp] || token_body['exp']
-    self.class.encode(token_body, algorithm ? @options.merge(:algorithm => algorithm) : @options)
+    self.class.encode(token_body, algorithm ? @options.merge(algorithm: algorithm) : @options)
   end
 
   # Returns hash of values decoded from the token contents. If the
