@@ -18,6 +18,7 @@ require "ci/reporter/rake/rspec"
 ENV['CI_REPORTS'] = File.expand_path("spec_reports")
 COV_REPORTS = File.expand_path("coverage")
 
+task :rspec => 'ci:setup:rspec'
 task :default => [:test]
 task :tests => [:test]
 task :spec => [:test]
