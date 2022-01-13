@@ -377,7 +377,7 @@ class Scim
 
   def map_group(group, is_id, external_group, origin = "ldap")
     key_name = is_id ? :groupId : :displayName
-    request = {key_name => group, :externalGroup => external_group, :schemas => ["urn:scim:schemas:core:1.0"], :origin => origin }
+    request = {key_name => group, externalGroup: external_group, schemas: ["urn:scim:schemas:core:1.0"], origin: origin }
     result = json_parse_reply(@key_style, *json_post(@target,
                                                      "#{type_info(:group_mapping, :path)}", request,
                                                      headers))

@@ -29,7 +29,7 @@ describe TokenIssuer do
   subject { @issuer }
 
   describe 'initialize' do
-    let(:options) { {:http_proxy => 'http-proxy.com', :https_proxy => 'https-proxy.com', :skip_ssl_validation => true} }
+    let(:options) { {http_proxy: 'http-proxy.com', https_proxy: 'https-proxy.com', skip_ssl_validation: true} }
 
     it 'sets skip_ssl_validation' do
       subject.skip_ssl_validation == true
@@ -45,8 +45,8 @@ describe TokenIssuer do
         # TODO check basic auth header
         url.should == 'http://test.uaa.target/oauth/token'
         method.should == :post
-        reply = {:access_token => 'test_access_token', :token_type => 'BEARER',
-            :scope => 'logs.read', :expires_in => 98765}
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+            scope: 'logs.read', expires_in: 98765}
         [200, Util.json(reply), {'content-type' => 'application/json'}]
       end
       token = subject.client_credentials_grant('logs.read')
@@ -59,8 +59,8 @@ describe TokenIssuer do
 
     it 'gets all granted scopes if none specified' do
       subject.set_request_handler do |url, method, body, headers|
-        reply = {:access_token => 'test_access_token', :token_type => 'BEARER',
-            :scope => 'openid logs.read', :expires_in => 98765}
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+            scope: 'openid logs.read', expires_in: 98765}
         [200, Util.json(reply), {'content-type' => 'application/json'}]
       end
       token = subject.client_credentials_grant
@@ -92,8 +92,8 @@ describe TokenIssuer do
         # TODO check basic auth header
         url.should == 'http://test.uaa.target/oauth/token'
         method.should == :post
-        reply = {:access_token => 'test_access_token', :token_type => 'BEARER',
-            :scope => 'openid', :expires_in => 98765}
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+            scope: 'openid', expires_in: 98765}
         [200, Util.json(reply), {'content-type' => 'application/json'}]
       end
       token = subject.owner_password_grant('joe+admin', "?joe's%password$@ ", 'openid')
@@ -113,8 +113,8 @@ describe TokenIssuer do
         body.should =~ /(^|&)passcode=12345($|&)/
         body.should =~ /(^|&)grant_type=password($|&)/
         method.should == :post
-        reply = {:access_token => 'test_access_token', :token_type => 'BEARER',
-                 :scope => 'openid', :expires_in => 98765}
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+                 scope: 'openid', expires_in: 98765}
         [200, Util.json(reply), {'content-type' => 'application/json'}]
       end
       token = subject.passcode_grant('12345')
@@ -135,8 +135,8 @@ describe TokenIssuer do
         url.should == 'http://test.uaa.target/oauth/token'
         method.should == :post
         body.split('&').should =~ ['passcode=fake-passcode', 'grant_type=password']
-        reply = {:access_token => 'test_access_token', :token_type => 'BEARER',
-          :scope => 'openid', :expires_in => 98765}
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+          scope: 'openid', expires_in: 98765}
         [200, Util.json(reply), {'content-type' => 'application/json'}]
       end
       token = subject.owner_password_credentials_grant({passcode: 'fake-passcode'})
@@ -153,7 +153,7 @@ describe TokenIssuer do
 
     it 'gets the prompts for credentials used to authenticate implicit grant' do
       subject.set_request_handler do |url, method, body, headers|
-        info = { :prompts => {:username => ['text', 'Username'], :password => ['password', 'Password']} }
+        info = { prompts: {username: ['text', 'Username'], password: ['password', 'Password']} }
         [200, Util.json(info), {'content-type' => 'application/json'}]
       end
       result = subject.prompts
@@ -185,7 +185,7 @@ describe TokenIssuer do
         allow(subject).to receive(:random_state).and_return('1234')
         allow(subject).to receive(:authorize_path_args).and_return('/oauth/authorize?state=1234&scope=logs.read')
 
-        token = subject.implicit_grant_with_creds({:username => 'joe+admin', :password => "?joe's%password$@ "}, 'logs.read')
+        token = subject.implicit_grant_with_creds({username: 'joe+admin', password: "?joe's%password$@ "}, 'logs.read')
         token.should be_an_instance_of TokenInfo
         token.info['access_token'].should == 'test_access_token'
         token.info['token_type'].should =~ /^bearer$/i
@@ -214,8 +214,8 @@ describe TokenIssuer do
             'expires_in=98765&scope=openid+logs.read&state=bad_state'
         [302, nil, {'content-type' => 'application/json', 'location' => location}]
       end
-      expect {token = subject.implicit_grant_with_creds(:username => 'joe+admin',
-          :password => "?joe's%password$@ ")}.to raise_exception BadResponse
+      expect {token = subject.implicit_grant_with_creds(username: 'joe+admin',
+          password: "?joe's%password$@ ")}.to raise_exception BadResponse
     end
 
     it 'asks for an id_token with openid scope' do
@@ -253,8 +253,8 @@ describe TokenIssuer do
         # TODO check basic auth header
         url.should match 'http://test.uaa.target/oauth/token'
         method.should == :post
-        reply = {:access_token => 'test_access_token', :token_type => 'BEARER',
-            :scope => 'openid', :expires_in => 98765}
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+            scope: 'openid', expires_in: 98765}
         [200, Util.json(reply), {'content-type' => 'application/json'}]
       end
       cburi = 'http://call.back/uri_path'
