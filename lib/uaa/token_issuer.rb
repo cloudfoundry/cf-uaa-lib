@@ -73,8 +73,7 @@ class TokenIssuer
     if scope = Util.arglist(params.delete(:scope))
       params[:scope] = Util.strlist(scope)
     end
-    headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8,
-        'authorization' => Http.basic_auth(@client_id, @client_secret) }
+    headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8}
     if @basic_auth
       headers['authorization'] = Http.basic_auth(@client_id, @client_secret)
     else
