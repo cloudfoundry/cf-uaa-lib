@@ -1,5 +1,5 @@
 # CloudFoundry UAA Gem
-![Build status](https://github.com/cloudfoundry/cf-uaa-lib/actions/workflows/ruby.yml/badge.svg)
+![Build status](https://github.com/cloudfoundry/cf-uaa-lib/actions/workflows/ruby.yml/badge.svg?branch=master)
 [![Gem Version](https://badge.fury.io/rb/cf-uaa-lib.png)](http://badge.fury.io/rb/cf-uaa-lib)
 
 Client gem for interacting with the [CloudFoundry UAA server](https://github.com/cloudfoundry/uaa)
