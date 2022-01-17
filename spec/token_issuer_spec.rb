@@ -23,13 +23,13 @@ describe TokenIssuer do
 
   before do
     #Util.default_logger(:trace)
-    @issuer = TokenIssuer.new('http://test.uaa.target', 'test_client', 'test_secret', options)
+    @issuer = TokenIssuer.new('http://test.uaa.target', 'test_client', 'test!secret', options)
   end
 
   subject { @issuer }
 
   describe 'initialize' do
-    let(:options) { {http_proxy: 'http-proxy.com', https_proxy: 'https-proxy.com', skip_ssl_validation: true} }
+    let(:options) { {http_proxy: 'http-proxy.com', https_proxy: 'https-proxy.com', skip_ssl_validation: true, basic_auth: false} }
 
     it 'sets skip_ssl_validation' do
       subject.skip_ssl_validation == true
@@ -42,7 +42,8 @@ describe TokenIssuer do
       subject.set_request_handler do |url, method, body, headers|
         headers['content-type'].should =~ /application\/x-www-form-urlencoded/
         headers['accept'].should =~ /application\/json/
-        # TODO check basic auth header
+        headers['X-CF-ENCODED-CREDENTIALS'].should == 'true'
+        headers['authorization'].should == 'Basic dGVzdF9jbGllbnQ6dGVzdCUyMXNlY3JldA=='
         url.should == 'http://test.uaa.target/oauth/token'
         method.should == :post
         reply = {access_token: 'test_access_token', token_type: 'BEARER',
@@ -89,7 +90,8 @@ describe TokenIssuer do
       subject.set_request_handler do |url, method, body, headers|
         headers['content-type'].should =~ /application\/x-www-form-urlencoded/
         headers['accept'].should =~ /application\/json/
-        # TODO check basic auth header
+        headers['X-CF-ENCODED-CREDENTIALS'].should == 'true'
+        headers['authorization'].should == 'Basic dGVzdF9jbGllbnQ6dGVzdCUyMXNlY3JldA=='
         url.should == 'http://test.uaa.target/oauth/token'
         method.should == :post
         reply = {access_token: 'test_access_token', token_type: 'BEARER',
@@ -108,7 +110,8 @@ describe TokenIssuer do
       subject.set_request_handler do |url, method, body, headers|
         headers['content-type'].should =~ /application\/x-www-form-urlencoded/
         headers['accept'].should =~ /application\/json/
-        # TODO check basic auth header
+        headers['X-CF-ENCODED-CREDENTIALS'].should == 'true'
+        headers['authorization'].should == 'Basic dGVzdF9jbGllbnQ6dGVzdCUyMXNlY3JldA=='
         url.should == 'http://test.uaa.target/oauth/token'
         body.should =~ /(^|&)passcode=12345($|&)/
         body.should =~ /(^|&)grant_type=password($|&)/
@@ -250,7 +253,8 @@ describe TokenIssuer do
       subject.set_request_handler do |url, method, body, headers|
         headers['content-type'].should =~ /application\/x-www-form-urlencoded/
         headers['accept'].should =~ /application\/json/
-        # TODO check basic auth header
+        headers['X-CF-ENCODED-CREDENTIALS'].should == 'true'
+        headers['authorization'].should == 'Basic dGVzdF9jbGllbnQ6dGVzdCUyMXNlY3JldA=='
         url.should match 'http://test.uaa.target/oauth/token'
         method.should == :post
         reply = {access_token: 'test_access_token', token_type: 'BEARER',

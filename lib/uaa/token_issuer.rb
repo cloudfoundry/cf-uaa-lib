@@ -13,6 +13,7 @@
 
 require 'securerandom'
 require 'uaa/http'
+require 'cgi'
 
 module CF::UAA
 
@@ -74,6 +75,12 @@ class TokenIssuer
     end
     headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8,
         'authorization' => Http.basic_auth(@client_id, @client_secret) }
+    if @basic_auth
+      headers['authorization'] = Http.basic_auth(@client_id, @client_secret)
+    else
+      headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
+      headers['authorization'] = Http.basic_auth(CGI.escape(@client_id), CGI.escape(@client_secret))
+    end
     reply = json_parse_reply(@key_style, *request(@token_target, :post,
         '/oauth/token', Util.encode_form(params), headers))
     raise BadResponse unless reply[jkey :token_type] && reply[jkey :access_token]
@@ -109,6 +116,7 @@ class TokenIssuer
     @target, @client_id, @client_secret = target, client_id, client_secret
     @token_target = options[:token_target] || target
     @key_style = options[:symbolize_keys] ? :sym : nil
+    @basic_auth = options[:basic_auth] == true ? true : false
     initialize_http_options(options)
   end
 
