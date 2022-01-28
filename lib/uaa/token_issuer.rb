@@ -78,7 +78,7 @@ class TokenIssuer
       headers['authorization'] = Http.basic_auth(@client_id, @client_secret)
     else
       headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
-      headers['authorization'] = Http.basic_auth(CGI.escape(@client_id), CGI.escape(@client_secret))
+      headers['authorization'] = Http.basic_auth(CGI.escape(@client_id || ''), CGI.escape(@client_secret || ''))
     end
     reply = json_parse_reply(@key_style, *request(@token_target, :post,
         '/oauth/token', Util.encode_form(params), headers))
