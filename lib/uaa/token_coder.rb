@@ -129,6 +129,17 @@ class TokenCoder
     payload
   end
 
+  # Decodes a JWT token to extract its expiry time
+  # @param [String] token A JWT token as returned by {TokenCoder.encode}
+  # @return [Integer] exp expiry timestamp
+  def self.decode_token_expiry(token)
+    segments = token.split('.')
+    raise InvalidTokenFormat, "Not enough or too many segments" unless [2,3].include? segments.length
+    header_segment, payload_segment, crypto_segment = segments
+    payload = Util.json_decode64(payload_segment, :sym)
+    payload[:exp]
+  end
+
   # Takes constant time to compare 2 strings (HMAC digests in this case)
   # to avoid timing attacks while comparing the HMAC digests
   # @param [String] a: the first digest to compare
