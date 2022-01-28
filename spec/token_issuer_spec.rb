@@ -23,8 +23,11 @@ describe TokenIssuer do
 
   before do
     #Util.default_logger(:trace)
-    @issuer = TokenIssuer.new('http://test.uaa.target', 'test_client', 'test!secret', options)
+    @issuer = TokenIssuer.new('http://test.uaa.target', client_id, client_secret, options)
   end
+
+  let(:client_id) { 'test_client' }
+  let(:client_secret) { 'test!secret' }
 
   subject { @issuer }
 
@@ -104,6 +107,31 @@ describe TokenIssuer do
       token.info['token_type'].should =~ /^bearer$/i
       token.info['scope'].should == 'openid'
       token.info['expires_in'].should == 98765
+    end
+
+    context "when client & client secret are nil" do
+      let(:client_id) { nil }
+      let(:client_secret) { nil }
+
+      it 'does not error' do
+        subject.set_request_handler do |url, method, body, headers|
+          headers['content-type'].should =~ /application\/x-www-form-urlencoded/
+          headers['accept'].should =~ /application\/json/
+          headers['X-CF-ENCODED-CREDENTIALS'].should == 'true'
+          headers['authorization'].should == 'Basic Og=='
+          url.should == 'http://test.uaa.target/oauth/token'
+          method.should == :post
+          reply = {access_token: 'test_access_token', token_type: 'BEARER',
+                   scope: 'openid', expires_in: 98765}
+          [200, Util.json(reply), {'content-type' => 'application/json'}]
+        end
+        token = subject.owner_password_grant('joe+admin', "?joe's%password$@ ", 'openid')
+        token.should be_an_instance_of TokenInfo
+        token.info['access_token'].should == 'test_access_token'
+        token.info['token_type'].should =~ /^bearer$/i
+        token.info['scope'].should == 'openid'
+        token.info['expires_in'].should == 98765
+      end
     end
 
     it 'gets a token with passcode' do
