@@ -12,6 +12,7 @@
 #++
 
 require 'securerandom'
+require "digest"
 require 'uaa/http'
 require 'cgi'
 
@@ -53,8 +54,17 @@ class TokenIssuer
   include Http
 
   private
+  @client_auth_method = 'client_secret_basic'
 
   def random_state; SecureRandom.hex end
+
+  def code_verifier
+    @verifier ||= SecureRandom.base64(96).tr("+/", "-_").tr("=", "")
+  end
+
+  def code_challenge
+    @challenge ||= Digest::SHA256.base64digest(code_verifier).tr("+/", "-_").tr("=", "")
+  end
 
   def parse_implicit_params(encoded_params, state)
     params = Util.decode_form(encoded_params)
@@ -74,11 +84,18 @@ class TokenIssuer
       params[:scope] = Util.strlist(scope)
     end
     headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8}
-    if @basic_auth
-      headers['authorization'] = Http.basic_auth(@client_id, @client_secret)
-    else
-      headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
-      headers['authorization'] = Http.basic_auth(CGI.escape(@client_id || ''), CGI.escape(@client_secret || ''))
+    if @client_auth_method == 'client_secret_basic' && @client_secret && @client_id
+      if @basic_auth
+        headers['authorization'] = Http.basic_auth(@client_id, @client_secret)
+      else
+        headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
+        headers['authorization'] = Http.basic_auth(CGI.escape(@client_id), CGI.escape(@client_secret))
+      end
+    elsif @client_auth_method == 'client_secret_post' && @client_secret && @client_id
+      params[:client_id] = @client_id
+      params[:client_secret] = @client_secret
+    elsif @client_id && params[:code_verifier]
+      params[:client_id] = @client_id
     end
     reply = json_parse_reply(@key_style, *request(@token_target, :post,
         '/oauth/token', Util.encode_form(params), headers))
@@ -86,11 +103,15 @@ class TokenIssuer
     TokenInfo.new(reply)
   end
 
-  def authorize_path_args(response_type, redirect_uri, scope, state = random_state, args = {})
+  def authorize_path_args(response_type, redirect_uri, scope, state = random_state, pkce_value = nil, args = {})
     params = args.merge(client_id: @client_id, response_type: response_type,
         redirect_uri: redirect_uri, state: state)
     params[:scope] = scope = Util.strlist(scope) if scope = Util.arglist(scope)
     params[:nonce] = state
+    if not pkce_value.nil?
+      params[:code_challenge] = pkce_value
+      params[:code_challenge_method] = 'S256'
+    end
     "/oauth/authorize?#{Util.encode_form(params)}"
   end
 
@@ -116,6 +137,7 @@ class TokenIssuer
     @token_target = options[:token_target] || target
     @key_style = options[:symbolize_keys] ? :sym : nil
     @basic_auth = options[:basic_auth] == true ? true : false
+    @client_auth_method = options[:client_auth_method] ? options[:client_auth_method] : 'client_secret_basic'
     initialize_http_options(options)
   end
 
@@ -210,7 +232,7 @@ class TokenIssuer
   #   can redirect the user back to the caller's endpoint.
   # @return [String] uri which
   def authcode_uri(redirect_uri, scope = nil)
-    @target + authorize_path_args('code', redirect_uri, scope)
+    @target + authorize_path_args('code', redirect_uri, scope, state = random_state, pkce_value = code_challenge)
   end
 
   # Uses the instance client credentials in addition to +callback_query+
@@ -236,7 +258,7 @@ class TokenIssuer
       raise BadResponse, "received invalid response from target #{@target}"
     end
     request_token(grant_type: 'authorization_code', code: authcode,
-        redirect_uri: ac_params['redirect_uri'])
+        redirect_uri: ac_params['redirect_uri'], code_verifier: code_verifier)
   end
 
   # Uses the instance client credentials in addition to the +username+

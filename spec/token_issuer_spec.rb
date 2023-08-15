@@ -292,6 +292,8 @@ describe TokenIssuer do
       cburi = 'http://call.back/uri_path'
       redir_uri = subject.authcode_uri(cburi)
       state = /state=([^&]+)/.match(redir_uri)[1]
+      challenge = /code_challenge=([^&]+)/.match(redir_uri)[1]
+      challenge.should =~ /^[0-9A-Za-z_-]{43}$/i
       reply_query = "state=#{state}&code=kz8%2F5gQZ2pc%3D"
       token = subject.authcode_grant(redir_uri, reply_query)
       token.should be_an_instance_of TokenInfo
