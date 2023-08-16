@@ -20,7 +20,7 @@ def show(title, object)
   puts
 end
 
-uaa_options = { skip_ssl_validation: true, client_auth_method: 'none' }
+uaa_options = { skip_ssl_validation: true, use_pkce:true, client_auth_method: 'none'}
 uaa_options[:ssl_ca_file] = ENV["UAA_CA_CERT_FILE"] if ENV["UAA_CA_CERT_FILE"]
 show "uaa_options", uaa_options
 

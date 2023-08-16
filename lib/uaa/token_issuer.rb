@@ -58,12 +58,22 @@ class TokenIssuer
 
   def random_state; SecureRandom.hex end
 
+  # Generates a random verifier for PKCE usage
   def code_verifier
-    @verifier ||= SecureRandom.base64(96).tr("+/", "-_").tr("=", "")
+    if @code_verifier
+      @verifier = @code_verifier
+    else
+      @verifier ||= SecureRandom.base64(96).tr("+/", "-_").tr("=", "")
+    end
   end
 
+  # Calculates the challenge from code_verifier
   def code_challenge
-    @challenge ||= Digest::SHA256.base64digest(code_verifier).tr("+/", "-_").tr("=", "")
+    if @code_verifier
+      @challenge = Digest::SHA256.base64digest(@code_verifier).tr("+/", "-_").tr("=", "")
+    else
+      @challenge ||= Digest::SHA256.base64digest(code_verifier).tr("+/", "-_").tr("=", "")
+    end
   end
 
   def parse_implicit_params(encoded_params, state)
@@ -106,13 +116,13 @@ class TokenIssuer
     TokenInfo.new(reply)
   end
 
-  def authorize_path_args(response_type, redirect_uri, scope, state = random_state, pkce_value = nil, args = {})
+  def authorize_path_args(response_type, redirect_uri, scope, state = random_state, args = {})
     params = args.merge(client_id: @client_id, response_type: response_type,
         redirect_uri: redirect_uri, state: state)
     params[:scope] = scope = Util.strlist(scope) if scope = Util.arglist(scope)
     params[:nonce] = state
-    if not pkce_value.nil?
-      params[:code_challenge] = pkce_value
+    if not @code_verifier.nil?
+      params[:code_challenge] = code_challenge
       params[:code_challenge_method] = 'S256'
     end
     "/oauth/authorize?#{Util.encode_form(params)}"
@@ -140,7 +150,11 @@ class TokenIssuer
     @token_target = options[:token_target] || target
     @key_style = options[:symbolize_keys] ? :sym : nil
     @basic_auth = options[:basic_auth] == true ? true : false
-    @client_auth_method = options[:client_auth_method] ? options[:client_auth_method] : 'client_secret_basic'
+    @client_auth_method = options[:client_auth_method] || 'client_secret_basic'
+    @code_verifier = options[:code_verifier] || nil
+    if @code_verifier.nil? && options[:use_pkce] && options[:use_pkce] == true
+      @code_verifier = code_verifier
+    end
     initialize_http_options(options)
   end
 
@@ -235,7 +249,7 @@ class TokenIssuer
   #   can redirect the user back to the caller's endpoint.
   # @return [String] uri which
   def authcode_uri(redirect_uri, scope = nil)
-    @target + authorize_path_args('code', redirect_uri, scope, state = random_state, pkce_value = code_challenge)
+    @target + authorize_path_args('code', redirect_uri, scope)
   end
 
   # Uses the instance client credentials in addition to +callback_query+
@@ -260,8 +274,21 @@ class TokenIssuer
     rescue URI::InvalidURIError, ArgumentError, BadResponse
       raise BadResponse, "received invalid response from target #{@target}"
     end
-    request_token(grant_type: 'authorization_code', code: authcode,
-        redirect_uri: ac_params['redirect_uri'], code_verifier: code_verifier)
+    if not @code_verifier.nil?
+      request_token(grant_type: 'authorization_code', code: authcode,
+          redirect_uri: ac_params['redirect_uri'], code_verifier: @code_verifier)
+    else
+      request_token(grant_type: 'authorization_code', code: authcode,
+                    redirect_uri: ac_params['redirect_uri'])
+    end
+  end
+
+  def get_verifier
+    @calc_verifier = code_verifier
+  end
+
+  def get_challenge
+    @calc_challenge = code_challenge
   end
 
   # Uses the instance client credentials in addition to the +username+
