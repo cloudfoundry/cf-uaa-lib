@@ -275,6 +275,8 @@ describe TokenIssuer do
       params['scope'].should == 'openid'
       params['redirect_uri'].should == redir_uri
       params['state'].should_not be_nil
+      params['code_challenge'].should =~ /^[0-9A-Za-z_-]{43}$/i
+      params['code_challenge_method'].should == 'S256'
     end
 
     it 'gets an access token with an authorization code' do
@@ -294,6 +296,8 @@ describe TokenIssuer do
       state = /state=([^&]+)/.match(redir_uri)[1]
       challenge = /code_challenge=([^&]+)/.match(redir_uri)[1]
       challenge.should =~ /^[0-9A-Za-z_-]{43}$/i
+      challenge_method = /code_challenge_method=([^&]+)/.match(redir_uri)[1]
+      challenge_method.should == 'S256'
       reply_query = "state=#{state}&code=kz8%2F5gQZ2pc%3D"
       token = subject.authcode_grant(redir_uri, reply_query)
       token.should be_an_instance_of TokenInfo
