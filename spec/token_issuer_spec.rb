@@ -326,8 +326,10 @@ describe TokenIssuer do
     end
   end
 
-  context 'no pkce active' do
-      it 'calculate code_challenge on existing verifier' do
+  context 'no pkce active as this is the default' do
+      #let(:options) { {use_pkce: false} }
+      # by default PKCE is off
+      it 'no code pkce generation with an authorization code' do
         redir_uri = 'http://call.back/uri_path'
         uri_parts = subject.authcode_uri(redir_uri, 'openid').split('?')
         params = Util.decode_form(uri_parts[1])

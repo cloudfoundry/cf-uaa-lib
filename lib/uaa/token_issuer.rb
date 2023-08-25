@@ -60,7 +60,7 @@ class TokenIssuer
 
   # Generates a random verifier for PKCE usage
   def code_verifier
-    if @code_verifier
+    if not @code_verifier.nil?
       @verifier = @code_verifier
     else
       @verifier ||= SecureRandom.base64(96).tr("+/", "-_").tr("=", "")
@@ -69,11 +69,7 @@ class TokenIssuer
 
   # Calculates the challenge from code_verifier
   def code_challenge
-    if @code_verifier
-      @challenge = Digest::SHA256.base64digest(@code_verifier).tr("+/", "-_").tr("=", "")
-    else
-      @challenge ||= Digest::SHA256.base64digest(code_verifier).tr("+/", "-_").tr("=", "")
-    end
+    @challenge = Digest::SHA256.base64digest(@code_verifier).tr("+/", "-_").tr("=", "")
   end
 
   def parse_implicit_params(encoded_params, state)
@@ -101,9 +97,6 @@ class TokenIssuer
         headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
         headers['authorization'] = Http.basic_auth(CGI.escape(@client_id), CGI.escape(@client_secret))
       end
-    elsif @client_auth_method == 'client_secret_post' && @client_secret && @client_id
-      params[:client_id] = @client_id
-      params[:client_secret] = @client_secret
     elsif @client_id && params[:code_verifier]
       params[:client_id] = @client_id
     else
