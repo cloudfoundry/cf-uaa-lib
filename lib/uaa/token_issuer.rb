@@ -58,20 +58,6 @@ class TokenIssuer
 
   def random_state; SecureRandom.hex end
 
-  # Generates a random verifier for PKCE usage
-  def code_verifier
-    if not @code_verifier.nil?
-      @verifier = @code_verifier
-    else
-      @verifier ||= SecureRandom.base64(96).tr("+/", "-_").tr("=", "")
-    end
-  end
-
-  # Calculates the challenge from code_verifier
-  def code_challenge
-    @challenge = Digest::SHA256.base64digest(@code_verifier).tr("+/", "-_").tr("=", "")
-  end
-
   def parse_implicit_params(encoded_params, state)
     params = Util.decode_form(encoded_params)
     raise BadResponse, "mismatched state" unless state && params.delete('state') == state
@@ -115,7 +101,7 @@ class TokenIssuer
     params[:scope] = scope = Util.strlist(scope) if scope = Util.arglist(scope)
     params[:nonce] = state
     if not @code_verifier.nil?
-      params[:code_challenge] = code_challenge
+      params[:code_challenge] = get_challenge
       params[:code_challenge_method] = 'S256'
     end
     "/oauth/authorize?#{Util.encode_form(params)}"
@@ -146,7 +132,7 @@ class TokenIssuer
     @client_auth_method = options[:client_auth_method] || 'client_secret_basic'
     @code_verifier = options[:code_verifier] || nil
     if @code_verifier.nil? && options[:use_pkce] && options[:use_pkce] == true
-      @code_verifier = code_verifier
+      @code_verifier = get_verifier
     end
     initialize_http_options(options)
   end
@@ -276,12 +262,18 @@ class TokenIssuer
     end
   end
 
+  # Generates a random verifier for PKCE usage
   def get_verifier
-    @calc_verifier = code_verifier
+    if not @code_verifier.nil?
+      @verifier = @code_verifier
+    else
+      @verifier ||= SecureRandom.base64(96).tr("+/", "-_").tr("=", "")
+    end
   end
 
+  # Calculates the challenge from code_verifier
   def get_challenge
-    @calc_challenge = code_challenge
+    @challenge ||= Digest::SHA256.base64digest(get_verifier).tr("+/", "-_").tr("=", "")
   end
 
   # Uses the instance client credentials in addition to the +username+
