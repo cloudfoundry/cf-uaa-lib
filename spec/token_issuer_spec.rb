@@ -264,6 +264,7 @@ describe TokenIssuer do
   end
 
   context 'with auth code grant' do
+    let(:options) { {use_pkce: true} }
 
     it 'gets the authcode uri to be sent to the user agent for an authcode' do
       redir_uri = 'http://call.back/uri_path'
@@ -275,6 +276,8 @@ describe TokenIssuer do
       params['scope'].should == 'openid'
       params['redirect_uri'].should == redir_uri
       params['state'].should_not be_nil
+      params['code_challenge'].should =~ /^[0-9A-Za-z_-]{43}$/i
+      params['code_challenge_method'].should == 'S256'
     end
 
     it 'gets an access token with an authorization code' do
@@ -292,6 +295,10 @@ describe TokenIssuer do
       cburi = 'http://call.back/uri_path'
       redir_uri = subject.authcode_uri(cburi)
       state = /state=([^&]+)/.match(redir_uri)[1]
+      challenge = /code_challenge=([^&]+)/.match(redir_uri)[1]
+      challenge.should =~ /^[0-9A-Za-z_-]{43}$/i
+      challenge_method = /code_challenge_method=([^&]+)/.match(redir_uri)[1]
+      challenge_method.should == 'S256'
       reply_query = "state=#{state}&code=kz8%2F5gQZ2pc%3D"
       token = subject.authcode_grant(redir_uri, reply_query)
       token.should be_an_instance_of TokenInfo
@@ -301,6 +308,34 @@ describe TokenIssuer do
       token.info['expires_in'].should == 98765
     end
 
+  end
+
+  context 'pkce with own code verifier' do
+    let(:options) { {basic_auth: false, code_verifier: 'umoq1e_4XMYXvfHlaO9mSlSI17OKfxnwfR5ZD-oYreFxyn8yQZ-ZHPZfUZ4n3WjY_tkOB_MAisSy4ddqsa6aoTU5ZOcX4ps3de933PczYlC8pZpKL8EQWaDZOnpOyB2W'} }
+
+    it 'calculate code_challenge on existing verifier' do
+      redir_uri = 'http://call.back/uri_path'
+      uri_parts = subject.authcode_uri(redir_uri, 'openid').split('?')
+      code_challenge = subject.get_challenge
+      code_verifier = subject.get_verifier
+      params = Util.decode_form(uri_parts[1])
+      params['code_challenge'].should == code_challenge
+      params['code_challenge_method'].should == 'S256'
+      code_verifier.should == options[:code_verifier]
+      code_challenge.should == 'TAnM2AKGgiQKOC16cRpMdF_55qwmz3B333cq6T18z0s'
+    end
+  end
+
+  context 'no pkce active as this is the default' do
+      #let(:options) { {use_pkce: false} }
+      # by default PKCE is off
+      it 'no code pkce generation with an authorization code' do
+        redir_uri = 'http://call.back/uri_path'
+        uri_parts = subject.authcode_uri(redir_uri, 'openid').split('?')
+        params = Util.decode_form(uri_parts[1])
+        params['code_challenge'].should_not
+        params['code_challenge_method'].should_not
+      end
   end
 
 end

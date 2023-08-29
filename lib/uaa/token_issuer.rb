@@ -12,6 +12,7 @@
 #++
 
 require 'securerandom'
+require "digest"
 require 'uaa/http'
 require 'cgi'
 
@@ -53,6 +54,7 @@ class TokenIssuer
   include Http
 
   private
+  @client_auth_method = 'client_secret_basic'
 
   def random_state; SecureRandom.hex end
 
@@ -74,8 +76,15 @@ class TokenIssuer
       params[:scope] = Util.strlist(scope)
     end
     headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8}
-    if @basic_auth
-      headers['authorization'] = Http.basic_auth(@client_id, @client_secret)
+    if @client_auth_method == 'client_secret_basic' && @client_secret && @client_id
+      if @basic_auth
+        headers['authorization'] = Http.basic_auth(@client_id, @client_secret)
+      else
+        headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
+        headers['authorization'] = Http.basic_auth(CGI.escape(@client_id), CGI.escape(@client_secret))
+      end
+    elsif @client_id && params[:code_verifier]
+      params[:client_id] = @client_id
     else
       headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
       headers['authorization'] = Http.basic_auth(CGI.escape(@client_id || ''), CGI.escape(@client_secret || ''))
@@ -91,6 +100,10 @@ class TokenIssuer
         redirect_uri: redirect_uri, state: state)
     params[:scope] = scope = Util.strlist(scope) if scope = Util.arglist(scope)
     params[:nonce] = state
+    if not @code_verifier.nil?
+      params[:code_challenge] = get_challenge
+      params[:code_challenge_method] = 'S256'
+    end
     "/oauth/authorize?#{Util.encode_form(params)}"
   end
 
@@ -116,6 +129,11 @@ class TokenIssuer
     @token_target = options[:token_target] || target
     @key_style = options[:symbolize_keys] ? :sym : nil
     @basic_auth = options[:basic_auth] == true ? true : false
+    @client_auth_method = options[:client_auth_method] || 'client_secret_basic'
+    @code_verifier = options[:code_verifier] || nil
+    if @code_verifier.nil? && options[:use_pkce] && options[:use_pkce] == true
+      @code_verifier = get_verifier
+    end
     initialize_http_options(options)
   end
 
@@ -235,8 +253,27 @@ class TokenIssuer
     rescue URI::InvalidURIError, ArgumentError, BadResponse
       raise BadResponse, "received invalid response from target #{@target}"
     end
-    request_token(grant_type: 'authorization_code', code: authcode,
-        redirect_uri: ac_params['redirect_uri'])
+    if not @code_verifier.nil?
+      request_token(grant_type: 'authorization_code', code: authcode,
+          redirect_uri: ac_params['redirect_uri'], code_verifier: @code_verifier)
+    else
+      request_token(grant_type: 'authorization_code', code: authcode,
+                    redirect_uri: ac_params['redirect_uri'])
+    end
+  end
+
+  # Generates a random verifier for PKCE usage
+  def get_verifier
+    if not @code_verifier.nil?
+      @verifier = @code_verifier
+    else
+      @verifier ||= SecureRandom.base64(96).tr("+/", "-_").tr("=", "")
+    end
+  end
+
+  # Calculates the challenge from code_verifier
+  def get_challenge
+    @challenge ||= Digest::SHA256.base64digest(get_verifier).tr("+/", "-_").tr("=", "")
   end
 
   # Uses the instance client credentials in addition to the +username+
