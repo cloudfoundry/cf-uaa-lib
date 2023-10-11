@@ -369,6 +369,28 @@ class Scim
         "#{type_info(:client, :path)}/#{Addressable::URI.encode(client_id)}/secret", req, headers))
   end
 
+  # Change client jwt trust configuration.
+  # * For a client to change its jwt client trust, the token in @auth_header must contain
+  #   "client.trust" scope.
+  # * For an admin to set a client secret, the token in @auth_header must contain
+  #   "uaa.admin" scope.
+  # @see https://docs.cloudfoundry.org/api/uaa/index.html#change-client-jwt
+  # @param [String] client_id the {Scim} +id+ attribute of the client
+  # @param [String] jwks_uri the URI to token endpoint
+  # @param [String] jwks the JSON Web Key Set
+  # @param [String] kid If changeMode is DELETE provide the id of key
+  # @param [String] changeMode Change mode, possible is ADD, UPDATE, DELETE
+  # @return [Hash] success message from server
+  def change_clientjwt(client_id, jwks_uri = nil, jwks = nil, kid = nil, changeMode = nil)
+    req = {"client_id" => client_id }
+    req["jwks_uri"] = jwks_uri if jwks_uri
+    req["jwks"] = jwks if jwks
+    req["kid"] = kid if kid
+    req["changeMode"] = changeMode if changeMode
+    json_parse_reply(@key_style, *json_put(@target,
+                                           "#{type_info(:client, :path)}/#{Addressable::URI.encode(client_id)}/clientjwt", req, headers))
+  end
+
   def unlock_user(user_id)
     req = {"locked" => false}
     json_parse_reply(@key_style, *json_patch(@target,
