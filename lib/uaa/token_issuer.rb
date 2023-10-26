@@ -83,6 +83,9 @@ class TokenIssuer
         headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
         headers['authorization'] = Http.basic_auth(CGI.escape(@client_id), CGI.escape(@client_secret))
       end
+    elsif @client_auth_method == 'client_secret_post' && @client_secret && @client_id
+      params[:client_id] = @client_id
+      params[:client_secret] = @client_secret
     elsif @client_id && params[:code_verifier]
       params[:client_id] = @client_id
     else
