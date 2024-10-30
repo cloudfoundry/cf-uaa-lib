@@ -11,7 +11,7 @@
 # subcomponent's license, as noted in the LICENSE file.
 #++
 
-require 'multi_json'
+require 'json/pure'
 require "base64"
 require 'logger'
 require 'uri'
@@ -141,11 +141,11 @@ class Util
 
   # Converts +obj+ to JSON
   # @return [String] obj in JSON form.
-  def self.json(obj) MultiJson.dump(obj) end
+  def self.json(obj) JSON.dump(obj) end
 
   # Converts +obj+ to nicely formatted JSON
   # @return [String] obj in formatted json
-  def self.json_pretty(obj) MultiJson.dump(obj, pretty: true) end
+  def self.json_pretty(obj) JSON.pretty_generate(obj) end
 
   # Converts +obj+ to a URL-safe base 64 encoded string
   # @return [String]
@@ -182,8 +182,8 @@ class Util
   # @param style (see Util.hash_key)
   # @return [Hash] parsed data
   def self.json_parse(str, style = nil)
-    hash_keys!(MultiJson.load(str), style) if str && !str.empty?
-  rescue MultiJson::DecodeError
+    hash_keys!(JSON.parse(str), style) if str && !str.empty?
+  rescue Exception
     raise DecodeError, "json decoding error"
   end
 
