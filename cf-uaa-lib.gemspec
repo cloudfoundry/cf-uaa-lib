@@ -31,7 +31,7 @@ Gem::Specification.new do |s|
   s.require_paths = ['lib']
 
   # dependencies
-  s.add_dependency 'json_pure', '~>2.7'
+  s.add_dependency 'multi_json', '>= 1.12.1', '< 1.16'
   s.add_dependency 'httpclient', '~> 2.8', '>= 2.8.2.4'
   s.add_dependency 'addressable', '~> 2.8', '>= 2.8.0'
 
@@ -41,7 +41,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'simplecov', '~> 0.22.0'
   s.add_development_dependency 'simplecov-rcov', '~> 0.3.0'
   s.add_development_dependency 'ci_reporter', '>= 1.9.2', '~> 2.0'
-  s.add_development_dependency 'json_pure', '~>2.7'
+  s.add_development_dependency 'json_pure', '>= 1.8.1', '~> 2.5'
   s.add_development_dependency 'ci_reporter_rspec', '~> 1.0'
 
 end
