@@ -11,8 +11,8 @@
 # subcomponent's license, as noted in the LICENSE file.
 #++
 
-require 'json/pure'
-require "base64"
+require 'json'
+require 'base64'
 require 'logger'
 require 'uri'
 
