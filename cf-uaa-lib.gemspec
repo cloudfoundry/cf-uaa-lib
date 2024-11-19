@@ -32,6 +32,8 @@ Gem::Specification.new do |s|
 
   # dependencies
   s.add_dependency 'json', '~>2.7'
+  s.add_dependency 'mutex_m'
+  s.add_dependency 'base64'
   s.add_dependency 'httpclient', '~> 2.8', '>= 2.8.2.4'
   s.add_dependency 'addressable', '~> 2.8', '>= 2.8.0'
 

@@ -11,6 +11,7 @@
 # subcomponent's license, as noted in the LICENSE file.
 #++
 
+require 'mutex_m'
 require 'base64'
 require 'uaa/util'
 require 'httpclient'
