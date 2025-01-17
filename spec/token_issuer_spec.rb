@@ -345,6 +345,35 @@ describe TokenIssuer do
     end
   end
 
+  context 'with client_assertion using client credentials grant' do
+    let(:client_id) { 'test_client' }
+    let(:client_secret) { nil }
+
+    it 'use client_secret_post in authorization code and expect client_id and secret in body' do
+      subject.set_request_handler do |url, method, body, headers|
+        headers['content-type'].should =~ /application\/x-www-form-urlencoded/
+        headers['accept'].should =~ /application\/json/
+        headers['X-CF-ENCODED-CREDENTIALS'].should_not
+        headers['authorization'].should_not
+        params = Util.decode_form(body)
+        params['grant_type'].should == 'client_credentials'
+        params['client_id'].should == 'test_client'
+        params['client_secret'].should_not
+        url.should match 'http://test.uaa.target/oauth/token'
+        method.should == :post
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+                 scope: 'logs.read', expires_in: 98765}
+        [200, Util.json(reply), {'content-type' => 'application/json'}]
+      end
+      token = subject.client_credentials_grant('logs.read', 'any-jwt-token')
+      token.should be_an_instance_of TokenInfo
+      token.info['access_token'].should == 'test_access_token'
+      token.info['token_type'].should =~ /^bearer$/i
+      token.info['scope'].should == 'logs.read'
+      token.info['expires_in'].should == 98765
+    end
+  end
+
   context 'pkce with own code verifier' do
     let(:options) { {basic_auth: false, code_verifier: 'umoq1e_4XMYXvfHlaO9mSlSI17OKfxnwfR5ZD-oYreFxyn8yQZ-ZHPZfUZ4n3WjY_tkOB_MAisSy4ddqsa6aoTU5ZOcX4ps3de933PczYlC8pZpKL8EQWaDZOnpOyB2W'} }
 
