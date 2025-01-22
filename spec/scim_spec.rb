@@ -184,6 +184,18 @@ describe Scim do
     result['id'].should == 'id12345'
   end
 
+  it "add federated client's jwt trust using issuer, subject and audience" do
+    subject.set_request_handler do |url, method, body, headers|
+      url.should == "#{@target}/oauth/clients/id12345/clientjwt"
+      method.should == :put
+      check_headers(headers, :json, :json, nil)
+      body.should include('"iss":"issuer"', '"sub":"subject"', '"aud":"audience"')
+      [200, '{"id":"id12345"}', {'content-type' => 'application/json'}]
+    end
+    result = subject.change_clientjwt('id12345', jwks_uri=nil, jwks=nil, kid=nil, changemod='ADD', iss='issuer', sub='subject', aud='audience')
+    result['id'].should == 'id12345'
+  end
+
   it 'unlocks a user' do
     subject.set_request_handler do |url, method, body, headers|
       url.should == "#{@target}/Users/id12345/status"
