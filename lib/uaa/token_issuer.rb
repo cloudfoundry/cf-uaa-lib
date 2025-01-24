@@ -75,6 +75,8 @@ class TokenIssuer
     if scope = Util.arglist(params.delete(:scope))
       params[:scope] = Util.strlist(scope)
     end
+    client_assertion = params[:client_assertion]
+    params.delete(:client_assertion)
     headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8}
     if @client_auth_method == 'client_secret_basic' && @client_secret && @client_id
       if @basic_auth
@@ -88,9 +90,10 @@ class TokenIssuer
       params[:client_secret] = @client_secret
     elsif @client_id && params[:code_verifier]
       params[:client_id] = @client_id
-    elsif (@client_assertion || params[:client_assertion]) && @client_id && @client_secret.nil?
+    elsif client_assertion && @client_id && @client_secret.nil?
       params[:client_id] = @client_id
-      params[:client_assertion] = @client_assertion || params[:client_assertion]
+      params[:client_assertion] = client_assertion
+      params[:client_assertion_type] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
     else
       headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
       headers['authorization'] = Http.basic_auth(CGI.escape(@client_id || ''), CGI.escape(@client_secret || ''))

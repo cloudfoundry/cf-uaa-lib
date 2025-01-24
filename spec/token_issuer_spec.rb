@@ -358,6 +358,8 @@ describe TokenIssuer do
         params = Util.decode_form(body)
         params['grant_type'].should == 'client_credentials'
         params['client_id'].should == 'test_client'
+        params['client_assertion'].should == 'any-jwt-token'
+        params['client_assertion_type'].should == 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
         params['client_secret'].should_not
         url.should match 'http://test.uaa.target/oauth/token'
         method.should == :post
