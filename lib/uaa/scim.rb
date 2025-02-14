@@ -380,13 +380,19 @@ class Scim
   # @param [String] jwks the JSON Web Key Set
   # @param [String] kid If changeMode is DELETE provide the id of key
   # @param [String] changeMode Change mode, possible is ADD, UPDATE, DELETE
+  # @param [String] iss Issuer in case of federation JWT trust
+  # @param [String] sub Subject in case of federation JWT trust
+  # @param [String] aud Audience in case of federation JWT trust
   # @return [Hash] success message from server
-  def change_clientjwt(client_id, jwks_uri = nil, jwks = nil, kid = nil, changeMode = nil)
+  def change_clientjwt(client_id, jwks_uri = nil, jwks = nil, kid = nil, changeMode = nil, iss = nil, sub = nil, aud = nil)
     req = {"client_id" => client_id }
     req["jwks_uri"] = jwks_uri if jwks_uri
     req["jwks"] = jwks if jwks
     req["kid"] = kid if kid
     req["changeMode"] = changeMode if changeMode
+    req["iss"] = iss if iss
+    req["sub"] = sub if sub
+    req["aud"] = aud if aud
     json_parse_reply(@key_style, *json_put(@target,
                                            "#{type_info(:client, :path)}/#{Addressable::URI.encode(client_id)}/clientjwt", req, headers))
   end
