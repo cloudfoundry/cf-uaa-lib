@@ -75,6 +75,8 @@ class TokenIssuer
     if scope = Util.arglist(params.delete(:scope))
       params[:scope] = Util.strlist(scope)
     end
+    client_assertion = params[:client_assertion]
+    params.delete(:client_assertion)
     headers = {'content-type' => FORM_UTF8, 'accept' => JSON_UTF8}
     if @client_auth_method == 'client_secret_basic' && @client_secret && @client_id
       if @basic_auth
@@ -88,6 +90,10 @@ class TokenIssuer
       params[:client_secret] = @client_secret
     elsif @client_id && params[:code_verifier]
       params[:client_id] = @client_id
+    elsif client_assertion && @client_id && @client_secret.nil?
+      params[:client_id] = @client_id
+      params[:client_assertion] = client_assertion
+      params[:client_assertion_type] = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
     else
       headers['X-CF-ENCODED-CREDENTIALS'] = 'true'
       headers['authorization'] = Http.basic_auth(CGI.escape(@client_id || ''), CGI.escape(@client_secret || ''))
@@ -129,6 +135,7 @@ class TokenIssuer
   #   * +:symbolize_keys+, if true, returned hash keys are symbols.
   def initialize(target, client_id, client_secret = nil, options = {})
     @target, @client_id, @client_secret = target, client_id, client_secret
+    @client_assertion = options[:client_assertion] || nil
     @token_target = options[:token_target] || target
     @key_style = options[:symbolize_keys] ? :sym : nil
     @basic_auth = options[:basic_auth] == true ? true : false
@@ -310,8 +317,8 @@ class TokenIssuer
   # Uses the instance client credentials to get a token with a client
   # credentials grant. See http://tools.ietf.org/html/rfc6749#section-4.4
   # @return [TokenInfo]
-  def client_credentials_grant(scope = nil)
-    request_token(grant_type: 'client_credentials', scope: scope)
+  def client_credentials_grant(scope = nil, client_assertion = nil)
+    request_token(grant_type: 'client_credentials', scope: scope, client_assertion: client_assertion)
   end
 
   # Uses the instance client credentials and the given +refresh_token+ to get
