@@ -470,6 +470,55 @@ describe TokenIssuer do
     end
   end
 
+  context 'with jwt bearer grant' do
+
+    it 'gets a token with jwt bearer' do
+      subject.set_request_handler do |url, method, body, headers|
+        headers['content-type'].should =~ /application\/x-www-form-urlencoded/
+        headers['accept'].should =~ /application\/json/
+        headers['X-CF-ENCODED-CREDENTIALS'].should == 'true'
+        headers['authorization'].should == 'Basic dGVzdF9jbGllbnQ6dGVzdCUyMXNlY3JldA=='
+        url.should == 'http://test.uaa.target/oauth/token'
+        method.should == :post
+        reply = {access_token: 'test_access_token', token_type: 'BEARER',
+                 scope: 'openid', expires_in: 98765}
+        [200, Util.json(reply), {'content-type' => 'application/json'}]
+      end
+      token = subject.jwt_bearer_grant('assertion', 'openid')
+      token.should be_an_instance_of TokenInfo
+      token.info['access_token'].should == 'test_access_token'
+      token.info['token_type'].should =~ /^bearer$/i
+      token.info['scope'].should == 'openid'
+      token.info['expires_in'].should == 98765
+    end
+
+    context "when client & client secret are nil" do
+      let(:client_id) { nil }
+      let(:client_secret) { nil }
+
+      it 'does not error' do
+        subject.set_request_handler do |url, method, body, headers|
+          headers['content-type'].should =~ /application\/x-www-form-urlencoded/
+          headers['accept'].should =~ /application\/json/
+          headers['X-CF-ENCODED-CREDENTIALS'].should == 'true'
+          headers['authorization'].should == 'Basic Og=='
+          url.should == 'http://test.uaa.target/oauth/token'
+          method.should == :post
+          reply = {access_token: 'test_access_token', token_type: 'BEARER',
+                   scope: 'openid', expires_in: 98765}
+          [200, Util.json(reply), {'content-type' => 'application/json'}]
+        end
+        token = subject.jwt_bearer_grant('assertion', 'openid')
+        token.should be_an_instance_of TokenInfo
+        token.info['access_token'].should == 'test_access_token'
+        token.info['token_type'].should =~ /^bearer$/i
+        token.info['scope'].should == 'openid'
+        token.info['expires_in'].should == 98765
+      end
+    end
+
+  end
+
 end
 
 end

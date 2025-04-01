@@ -328,6 +328,15 @@ class TokenIssuer
     request_token(grant_type: 'refresh_token', refresh_token: refresh_token, scope: scope)
   end
 
+  # Gets an access token with the user assertion used for authentication
+  # via the jwt bearer authorization grant.
+  # See {http://tools.ietf.org/html/rfc7523#section-2.1}.
+  # @param assertion should be an id_token from a previous IdP token request
+  # @return [TokenInfo]
+  def jwt_bearer_grant(assertion, scope = nil, client_assertion = nil)
+    request_token(grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: assertion, scope: scope, client_assertion: client_assertion)
+  end
+
 end
 
 end
