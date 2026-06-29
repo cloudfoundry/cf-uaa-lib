@@ -297,9 +297,9 @@ describe Scim do
         method.should == :get
         check_headers(headers, nil, :json, nil)
 
-        query_params = CGI::parse(URI.parse(url).query)
-        start_index = query_params['startIndex'].first
-        count = query_params['count'].first
+        query_params = URI.decode_www_form(URI.parse(url).query).to_h
+        start_index = query_params['startIndex']
+        count = query_params['count']
 
         start_index.should == '3'
         count.should == '10'
