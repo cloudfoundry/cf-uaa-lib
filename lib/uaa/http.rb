@@ -184,7 +184,7 @@ module Http
     raise SSLException, "Invalid SSL Cert for #{url}. Use '--skip-ssl-validation' to continue with an insecure target"
   rescue URI::Error, SocketError, SystemCallError => e
     raise BadTarget, "error: #{e.message}"
-  rescue HTTPClient::ConnectTimeoutError, HTTPClient::ReceiveTimeoutError => e
+  rescue HTTPClient::ConnectTimeoutError, HTTPClient::ReceiveTimeoutError
     raise HTTPException.new "http timeout"
   end
 
