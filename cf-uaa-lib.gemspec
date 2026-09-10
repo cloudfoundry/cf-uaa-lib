@@ -32,7 +32,7 @@ Gem::Specification.new do |s|
   s.require_paths = ['lib']
 
   # dependencies
-  s.add_dependency 'json', '~>2.7'
+  s.add_dependency 'json', '>=2.7', '<4.0'
   s.add_dependency 'mutex_m'
   s.add_dependency 'base64'
   s.add_dependency 'logger'
